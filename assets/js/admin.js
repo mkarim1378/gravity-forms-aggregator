@@ -244,16 +244,22 @@
 		previewRequest = new XMLHttpRequest();
 		previewRequest.open('POST', gfaAdmin.ajaxUrl, true);
 		previewRequest.onreadystatechange = function () {
-			if (previewRequest.readyState !== 4) {
+			var xhr = this;
+
+			if (xhr.readyState !== 4 || xhr !== previewRequest) {
 				return;
 			}
 
 			previewLoading.hidden = true;
 			previewRequest = null;
 
+			if (xhr.status === 0) {
+				return;
+			}
+
 			var response;
 			try {
-				response = JSON.parse(previewRequest.responseText);
+				response = JSON.parse(xhr.responseText);
 			} catch (error) {
 				showError(previewError, gfaAdmin.i18n.previewFailed);
 				return;

@@ -138,7 +138,7 @@
 	font-weight: 600;
 }
 
-.gfa-admin-wrap .gfa-entries-loading {
+.gfa-admin-wrap .gfa-entries-loading:not([hidden]) {
 	display: flex;
 	align-items: center;
 	gap: 0.5em;

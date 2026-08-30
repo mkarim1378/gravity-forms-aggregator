@@ -132,16 +132,22 @@
 		listRequest = new XMLHttpRequest();
 		listRequest.open('POST', gfaEntriesList.ajaxUrl, true);
 		listRequest.onreadystatechange = function () {
-			if (listRequest.readyState !== 4) {
+			var xhr = this;
+
+			if (xhr.readyState !== 4 || xhr !== listRequest) {
 				return;
 			}
 
 			setLoading(false);
 			listRequest = null;
 
+			if (xhr.status === 0) {
+				return;
+			}
+
 			var response;
 			try {
-				response = JSON.parse(listRequest.responseText);
+				response = JSON.parse(xhr.responseText);
 			} catch (error) {
 				showError(gfaEntriesList.i18n.loadFailed);
 				return;
