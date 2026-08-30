@@ -29,12 +29,14 @@
 
 **خروجی:**
 
-- [ ] شناسایی جدول‌های مورد نیاز
-- [ ] روش خواندن entryها (SQL vs GFAPI)
-- [ ] mapping فیلدها و labelها
-- [ ] نمونه کوئری تست
+- [x] شناسایی جدول‌های مورد نیاز (`GFA_GF_Schema`)
+- [x] روش خواندن entryها → **GFAPI** (نه SQL مستقیم)
+- [x] mapping فیلدها و labelها (`GFA_Field_Mapper`)
+- [x] نمونه کوئری تست (`probe()` + `wp gfa probe <id>`)
 
-**نکته:** مشخص می‌شود کوئری مستقیم کافی است یا GFAPI بهتر است.
+**وضعیت:** ✅ — `GFA_Data_Extractor` + batching
+
+**نکته:** GFAPI برای پایداری across versions انتخاب شد؛ composite fields به‌صورت sub-input جدا export می‌شوند.
 
 ---
 

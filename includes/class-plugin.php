@@ -46,6 +46,11 @@ final class GFA_Plugin {
 			add_action( 'admin_notices', array( $this, 'render_missing_gf_notice' ) );
 			return;
 		}
+
+		if ( defined( 'WP_CLI' ) && WP_CLI ) {
+			require_once GFA_PLUGIN_DIR . 'includes/class-wp-cli.php';
+			WP_CLI::add_command( 'gfa', 'GFA_WP_CLI' );
+		}
 	}
 
 	/**
