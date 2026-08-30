@@ -20,6 +20,9 @@ final class GFA_Admin_Page {
 	/** @var GFA_Export_Engine */
 	private $engine;
 
+	/** @var GFA_Export_Preview */
+	private $preview;
+
 	/** @var array<string, mixed> */
 	private $form_state = array();
 
@@ -44,7 +47,8 @@ final class GFA_Admin_Page {
 	}
 
 	private function __construct() {
-		$this->engine = new GFA_Export_Engine();
+		$this->engine  = new GFA_Export_Engine();
+		$this->preview = new GFA_Export_Preview( $this->engine );
 	}
 
 	/**
@@ -54,6 +58,7 @@ final class GFA_Admin_Page {
 		add_action( 'admin_menu', array( $this, 'register_menu' ) );
 		add_action( 'admin_init', array( $this, 'handle_post' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
+		add_action( 'wp_ajax_gfa_export_preview', array( $this, 'ajax_preview' ) );
 	}
 
 	/**
@@ -127,9 +132,20 @@ final class GFA_Admin_Page {
 			'gfa-admin',
 			'gfaAdmin',
 			array(
-				'i18n' => array(
-					'noFormsSelected'  => __( 'Select at least one form to export.', 'gravity-forms-aggregator' ),
-					'invalidDateRange' => __( 'The start date must not be after the end date.', 'gravity-forms-aggregator' ),
+				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+				'nonce'   => wp_create_nonce( 'gfa_export_preview' ),
+				'i18n'    => array(
+					'noFormsSelected'    => __( 'Select at least one form to export.', 'gravity-forms-aggregator' ),
+					'invalidDateRange'   => __( 'The start date must not be after the end date.', 'gravity-forms-aggregator' ),
+					'previewTitle'       => __( 'Export preview', 'gravity-forms-aggregator' ),
+					'formsSelected'      => __( 'Forms selected: %d', 'gravity-forms-aggregator' ),
+					'entriesFound'       => __( 'Entries found: %d', 'gravity-forms-aggregator' ),
+					'dateRange'          => __( 'Date range: %s', 'gravity-forms-aggregator' ),
+					'emptyFormsWarning'  => __( 'No entries in the selected date range for form ID(s): %s', 'gravity-forms-aggregator' ),
+					'noEntriesWarning'   => __( 'No entries match the current selection. The export file will contain headers only.', 'gravity-forms-aggregator' ),
+					'previewLoading'     => __( 'Counting entries…', 'gravity-forms-aggregator' ),
+					'previewFailed'      => __( 'Could not load the export preview.', 'gravity-forms-aggregator' ),
+					'exporting'          => __( 'Exporting…', 'gravity-forms-aggregator' ),
 				),
 			)
 		);
@@ -181,6 +197,34 @@ final class GFA_Admin_Page {
 
 			return;
 		}
+	}
+
+	/**
+	 * AJAX handler — return entry counts and warnings before download.
+	 */
+	public function ajax_preview(): void {
+		check_ajax_referer( 'gfa_export_preview', 'nonce' );
+
+		if ( ! current_user_can( self::required_capability() ) ) {
+			wp_send_json_error(
+				array( 'message' => __( 'You do not have permission to preview exports.', 'gravity-forms-aggregator' ) ),
+				403
+			);
+		}
+
+		$state  = $this->read_form_state_from_request();
+		$parsed = $this->parse_selection_request( $state );
+
+		if ( is_wp_error( $parsed ) ) {
+			wp_send_json_error( array( 'message' => $parsed->get_error_message() ) );
+		}
+
+		$preview = $this->preview->get_preview( $parsed['form_ids'], $parsed['range'] );
+		if ( is_wp_error( $preview ) ) {
+			wp_send_json_error( array( 'message' => $preview->get_error_message() ) );
+		}
+
+		wp_send_json_success( $preview );
 	}
 
 	/**
@@ -332,10 +376,33 @@ final class GFA_Admin_Page {
 					<p class="gfa-client-error" id="gfa-date-error" role="alert" hidden></p>
 				</div>
 
+				<div class="gfa-panel gfa-panel-preview" id="gfa-preview-panel" hidden>
+					<h2><?php esc_html_e( 'Export preview', 'gravity-forms-aggregator' ); ?></h2>
+					<p class="gfa-preview-loading" id="gfa-preview-loading" hidden>
+						<span class="spinner is-active" aria-hidden="true"></span>
+						<?php esc_html_e( 'Counting entries…', 'gravity-forms-aggregator' ); ?>
+					</p>
+					<p class="gfa-preview-error gfa-client-error" id="gfa-preview-error" role="alert" hidden></p>
+					<ul class="gfa-summary-list" id="gfa-preview-summary" hidden></ul>
+					<p class="gfa-summary-warning" id="gfa-preview-empty-forms" hidden></p>
+					<p class="gfa-summary-warning" id="gfa-preview-no-entries" hidden></p>
+				</div>
+
 				<div class="gfa-panel gfa-panel-export">
 					<h2><?php esc_html_e( 'Export', 'gravity-forms-aggregator' ); ?></h2>
+					<p class="description">
+						<?php esc_html_e( 'Preview the entry count before downloading, or export directly.', 'gravity-forms-aggregator' ); ?>
+					</p>
 					<p class="gfa-client-error" id="gfa-form-error" role="alert" hidden></p>
 					<p class="submit gfa-export-buttons">
+						<button
+							type="button"
+							class="button gfa-preview-button"
+							id="gfa-preview-button"
+							<?php disabled( empty( $forms ) ); ?>
+						>
+							<?php esc_html_e( 'Preview export', 'gravity-forms-aggregator' ); ?>
+						</button>
 						<button
 							type="submit"
 							class="button button-primary gfa-export-button"
@@ -441,24 +508,41 @@ final class GFA_Admin_Page {
 	 * @return array<string, mixed>
 	 */
 	private function read_form_state_from_post(): array {
-		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- sanitized below.
-		$raw_ids = isset( $_POST['gfa_form_ids'] ) ? (array) wp_unslash( $_POST['gfa_form_ids'] ) : array();
-
-		return array(
-			'form_ids'  => array_map( 'absint', $raw_ids ),
-			'from_date' => isset( $_POST['gfa_from_date'] ) ? sanitize_text_field( wp_unslash( $_POST['gfa_from_date'] ) ) : '',
-			'to_date'   => isset( $_POST['gfa_to_date'] ) ? sanitize_text_field( wp_unslash( $_POST['gfa_to_date'] ) ) : '',
-			'format'    => isset( $_POST['gfa_export_format'] ) ? sanitize_key( wp_unslash( $_POST['gfa_export_format'] ) ) : GFA_Export_Config::FORMAT_CSV,
-		);
+		return $this->read_form_state_from_request( true );
 	}
 
 	/**
-	 * Validate export inputs; returns parsed request or WP_Error.
+	 * Read form/date selection from POST or AJAX request.
+	 *
+	 * @param bool $include_format Whether to read export format (POST export only).
+	 * @return array<string, mixed>
+	 */
+	private function read_form_state_from_request( bool $include_format = false ): array {
+		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- sanitized below.
+		$raw_ids = isset( $_POST['gfa_form_ids'] ) ? (array) wp_unslash( $_POST['gfa_form_ids'] ) : array();
+
+		$state = array(
+			'form_ids'  => array_map( 'absint', $raw_ids ),
+			'from_date' => isset( $_POST['gfa_from_date'] ) ? sanitize_text_field( wp_unslash( $_POST['gfa_from_date'] ) ) : '',
+			'to_date'   => isset( $_POST['gfa_to_date'] ) ? sanitize_text_field( wp_unslash( $_POST['gfa_to_date'] ) ) : '',
+		);
+
+		if ( $include_format ) {
+			$state['format'] = isset( $_POST['gfa_export_format'] )
+				? sanitize_key( wp_unslash( $_POST['gfa_export_format'] ) )
+				: GFA_Export_Config::FORMAT_CSV;
+		}
+
+		return $state;
+	}
+
+	/**
+	 * Validate form/date selection; returns parsed request or WP_Error.
 	 *
 	 * @param array<string, mixed> $state Form state.
-	 * @return array{form_ids: int[], range: GFA_Date_Range, format: string}|WP_Error
+	 * @return array{form_ids: int[], range: GFA_Date_Range}|WP_Error
 	 */
-	private function parse_export_request( array $state ) {
+	private function parse_selection_request( array $state ) {
 		$form_ids = array_values(
 			array_filter(
 				array_map( 'absint', (array) ( $state['form_ids'] ?? array() ) ),
@@ -470,7 +554,6 @@ final class GFA_Admin_Page {
 
 		$from_raw = trim( (string) ( $state['from_date'] ?? '' ) );
 		$to_raw   = trim( (string) ( $state['to_date'] ?? '' ) );
-		$format   = sanitize_key( (string) ( $state['format'] ?? '' ) );
 
 		if ( '' !== $from_raw && ! $this->is_valid_date_input( $from_raw ) ) {
 			return new WP_Error(
@@ -496,13 +579,6 @@ final class GFA_Admin_Page {
 			return $date_validation;
 		}
 
-		if ( ! GFA_Export_Config::is_valid_format( $format ) ) {
-			return new WP_Error(
-				'gfa_invalid_format',
-				__( 'Invalid export format selected.', 'gravity-forms-aggregator' )
-			);
-		}
-
 		$request_validation = $this->engine->get_extractor()->validate_export_request( $form_ids, $range );
 		if ( is_wp_error( $request_validation ) ) {
 			return $request_validation;
@@ -526,6 +602,33 @@ final class GFA_Admin_Page {
 		return array(
 			'form_ids' => $valid_ids,
 			'range'    => $range,
+		);
+	}
+
+	/**
+	 * Validate export inputs; returns parsed request or WP_Error.
+	 *
+	 * @param array<string, mixed> $state Form state.
+	 * @return array{form_ids: int[], range: GFA_Date_Range, format: string}|WP_Error
+	 */
+	private function parse_export_request( array $state ) {
+		$parsed = $this->parse_selection_request( $state );
+		if ( is_wp_error( $parsed ) ) {
+			return $parsed;
+		}
+
+		$format = sanitize_key( (string) ( $state['format'] ?? '' ) );
+
+		if ( ! GFA_Export_Config::is_valid_format( $format ) ) {
+			return new WP_Error(
+				'gfa_invalid_format',
+				__( 'Invalid export format selected.', 'gravity-forms-aggregator' )
+			);
+		}
+
+		return array(
+			'form_ids' => $parsed['form_ids'],
+			'range'    => $parsed['range'],
 			'format'   => $format,
 		);
 	}

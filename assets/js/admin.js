@@ -15,9 +15,17 @@
 	var dateError = document.getElementById('gfa-date-error');
 	var formatInput = document.getElementById('gfa-export-format');
 	var exportButtons = form.querySelectorAll('.gfa-export-button');
+	var previewButton = document.getElementById('gfa-preview-button');
+	var previewPanel = document.getElementById('gfa-preview-panel');
+	var previewLoading = document.getElementById('gfa-preview-loading');
+	var previewError = document.getElementById('gfa-preview-error');
+	var previewSummary = document.getElementById('gfa-preview-summary');
+	var previewEmptyForms = document.getElementById('gfa-preview-empty-forms');
+	var previewNoEntries = document.getElementById('gfa-preview-no-entries');
 	var selectAllBtn = form.querySelector('.gfa-select-all');
 	var deselectAllBtn = form.querySelector('.gfa-deselect-all');
 	var rows = form.querySelectorAll('.gfa-forms-table tbody tr');
+	var previewRequest = null;
 
 	function getVisibleCheckboxes() {
 		return Array.prototype.filter.call(checkboxes, function (checkbox) {
@@ -52,10 +60,14 @@
 		checkAll.indeterminate = checkedVisible > 0 && checkedVisible < visible.length;
 	}
 
-	function setExportButtonsDisabled(disabled) {
+	function setButtonsDisabled(disabled) {
 		exportButtons.forEach(function (button) {
 			button.disabled = disabled;
 		});
+
+		if (previewButton) {
+			previewButton.disabled = disabled;
+		}
 	}
 
 	function hideError(element) {
@@ -100,9 +112,154 @@
 		return true;
 	}
 
+	function formatMessage(template, value) {
+		return template.replace('%d', String(value)).replace('%s', String(value));
+	}
+
+	function resetPreviewPanel() {
+		if (!previewPanel) {
+			return;
+		}
+
+		if (previewRequest) {
+			previewRequest.abort();
+			previewRequest = null;
+		}
+
+		previewPanel.hidden = true;
+		hideError(previewError);
+		if (previewLoading) {
+			previewLoading.hidden = true;
+		}
+		if (previewSummary) {
+			previewSummary.hidden = true;
+			previewSummary.innerHTML = '';
+		}
+		if (previewEmptyForms) {
+			previewEmptyForms.hidden = true;
+			previewEmptyForms.textContent = '';
+		}
+		if (previewNoEntries) {
+			previewNoEntries.hidden = true;
+			previewNoEntries.textContent = '';
+		}
+	}
+
+	function renderPreview(data) {
+		if (!previewPanel || !previewSummary) {
+			return;
+		}
+
+		previewPanel.hidden = false;
+		hideError(previewError);
+		if (previewLoading) {
+			previewLoading.hidden = true;
+		}
+
+		previewSummary.innerHTML = '';
+		[
+			formatMessage(gfaAdmin.i18n.formsSelected, data.form_count),
+			formatMessage(gfaAdmin.i18n.entriesFound, data.entry_count),
+			formatMessage(gfaAdmin.i18n.dateRange, data.date_label)
+		].forEach(function (text) {
+			var item = document.createElement('li');
+			item.textContent = text;
+			previewSummary.appendChild(item);
+		});
+		previewSummary.hidden = false;
+
+		if (previewEmptyForms && data.empty_form_ids && data.empty_form_ids.length) {
+			previewEmptyForms.textContent = formatMessage(
+				gfaAdmin.i18n.emptyFormsWarning,
+				data.empty_form_ids.join(', ')
+			);
+			previewEmptyForms.hidden = false;
+		} else if (previewEmptyForms) {
+			previewEmptyForms.hidden = true;
+		}
+
+		if (previewNoEntries) {
+			if (!data.has_entries) {
+				previewNoEntries.textContent = gfaAdmin.i18n.noEntriesWarning;
+				previewNoEntries.hidden = false;
+			} else {
+				previewNoEntries.hidden = true;
+			}
+		}
+	}
+
+	function buildPreviewFormData() {
+		var payload = new FormData(form);
+		payload.append('action', 'gfa_export_preview');
+		payload.append('nonce', gfaAdmin.nonce);
+		return payload;
+	}
+
+	function runPreview() {
+		if (!validateForms() || !validateDates()) {
+			return;
+		}
+
+		if (!previewPanel || !previewLoading) {
+			return;
+		}
+
+		if (previewRequest) {
+			previewRequest.abort();
+		}
+
+		previewPanel.hidden = false;
+		previewLoading.hidden = false;
+		hideError(previewError);
+		if (previewSummary) {
+			previewSummary.hidden = true;
+		}
+		if (previewEmptyForms) {
+			previewEmptyForms.hidden = true;
+		}
+		if (previewNoEntries) {
+			previewNoEntries.hidden = true;
+		}
+
+		previewRequest = new XMLHttpRequest();
+		previewRequest.open('POST', gfaAdmin.ajaxUrl, true);
+		previewRequest.onreadystatechange = function () {
+			if (previewRequest.readyState !== 4) {
+				return;
+			}
+
+			previewLoading.hidden = true;
+			previewRequest = null;
+
+			var response;
+			try {
+				response = JSON.parse(previewRequest.responseText);
+			} catch (error) {
+				showError(previewError, gfaAdmin.i18n.previewFailed);
+				return;
+			}
+
+			if (!response.success) {
+				showError(
+					previewError,
+					response.data && response.data.message ? response.data.message : gfaAdmin.i18n.previewFailed
+				);
+				return;
+			}
+
+			renderPreview(response.data);
+		};
+
+		previewRequest.send(buildPreviewFormData());
+	}
+
 	function updateExportState() {
-		setExportButtonsDisabled(getSelectedCount() === 0);
+		setButtonsDisabled(getSelectedCount() === 0);
 		syncCheckAllState();
+	}
+
+	function invalidatePreview() {
+		resetPreviewPanel();
 	}
 
 	function filterRows() {
@@ -124,12 +281,16 @@
 			getVisibleCheckboxes().forEach(function (checkbox) {
 				checkbox.checked = checked;
 			});
+			invalidatePreview();
 			updateExportState();
 		});
 	}
 
 	checkboxes.forEach(function (checkbox) {
-		checkbox.addEventListener('change', updateExportState);
+		checkbox.addEventListener('change', function () {
+			invalidatePreview();
+			updateExportState();
+		});
 	});
 
 	if (selectAllBtn) {
@@ -137,6 +298,7 @@
 			getVisibleCheckboxes().forEach(function (checkbox) {
 				checkbox.checked = true;
 			});
+			invalidatePreview();
 			updateExportState();
 		});
 	}
@@ -146,6 +308,7 @@
 			getVisibleCheckboxes().forEach(function (checkbox) {
 				checkbox.checked = false;
 			});
+			invalidatePreview();
 			updateExportState();
 		});
 	}
@@ -155,15 +318,25 @@
 	}
 
 	if (fromDate) {
-		fromDate.addEventListener('change', validateDates);
+		fromDate.addEventListener('change', function () {
+			validateDates();
+			invalidatePreview();
+		});
 	}
 
 	if (toDate) {
-		toDate.addEventListener('change', validateDates);
+		toDate.addEventListener('change', function () {
+			validateDates();
+			invalidatePreview();
+		});
+	}
+
+	if (previewButton) {
+		previewButton.addEventListener('click', runPreview);
 	}
 
 	exportButtons.forEach(function (button) {
-		button.addEventListener('click', function (event) {
+		button.addEventListener('click', function () {
 			if (formatInput) {
 				formatInput.value = button.getAttribute('data-format') || 'csv';
 			}
@@ -176,6 +349,20 @@
 
 		if (!formsValid || !datesValid) {
 			event.preventDefault();
+			return;
+		}
+
+		exportButtons.forEach(function (button) {
+			if (!button.disabled) {
+				button.classList.add('gfa-is-loading');
+				button.dataset.gfaOriginalText = button.textContent;
+				button.textContent = gfaAdmin.i18n.exporting;
+				button.disabled = true;
+			}
+		});
+
+		if (previewButton) {
+			previewButton.disabled = true;
 		}
 	});
 

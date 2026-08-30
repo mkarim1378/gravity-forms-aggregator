@@ -4,7 +4,7 @@ Tags: gravity forms, export, csv, excel
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.6.0
+Stable tag: 0.7.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -28,6 +28,9 @@ No additional database tables are created — data is read directly from Gravity
 3. Ensure Gravity Forms is installed and active
 
 == Changelog ==
+
+= 0.7.0 =
+* Phase 7: export preview with form/entry counts and empty-form warnings before download
 
 = 0.6.0 =
 * Phase 6: downloadable Excel (XLSX) export with the same unified data model as CSV

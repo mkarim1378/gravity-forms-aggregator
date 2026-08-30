@@ -83,6 +83,30 @@ gfa_assert( false !== strpos( $csv_content, 'Form ID' ), 'CSV contains standard 
 gfa_assert( false !== strpos( $csv_content, 'user@example.com' ), 'CSV contains unescaped simple value' );
 gfa_assert( false !== strpos( $csv_content, 'hello, ""world""' ), 'CSV escapes comma-containing field value' );
 
+// Preview formatter normalizes engine summary for UI responses.
+$formatted = GFA_Export_Preview::format_summary(
+	array(
+		'form_count'     => 3,
+		'entry_count'    => 12,
+		'date_label'     => '2024-01-01 to 2024-12-31',
+		'empty_form_ids' => array( 2, '5' ),
+	)
+);
+gfa_assert( 3 === $formatted['form_count'], 'format_summary preserves form_count' );
+gfa_assert( 12 === $formatted['entry_count'], 'format_summary preserves entry_count' );
+gfa_assert( true === $formatted['has_entries'], 'format_summary sets has_entries when count > 0' );
+gfa_assert( array( 2, 5 ) === $formatted['empty_form_ids'], 'format_summary coerces empty_form_ids to integers' );
+
+$empty_preview = GFA_Export_Preview::format_summary(
+	array(
+		'form_count'     => 1,
+		'entry_count'    => 0,
+		'date_label'     => 'All dates',
+		'empty_form_ids' => array( 1 ),
+	)
+);
+gfa_assert( false === $empty_preview['has_entries'], 'format_summary sets has_entries false for zero entries' );
+
 // XLSX writer produces a valid zip archive with standard headers and data rows.
 if ( GFA_Xlsx_Writer::is_supported() ) {
 	gfa_assert( 'A' === GFA_Xlsx_Writer::column_letter( 0 ), 'column_letter maps index 0 to A' );

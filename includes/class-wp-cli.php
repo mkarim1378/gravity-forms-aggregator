@@ -301,6 +301,59 @@ final class GFA_WP_CLI {
 	}
 
 	/**
+	 * Preview entry counts for selected forms before export.
+	 *
+	 * ## OPTIONS
+	 *
+	 * [--form-ids=<ids>]
+	 * : Comma-separated form IDs.
+	 *
+	 * [--from=<date>]
+	 * : Start date (Y-m-d).
+	 *
+	 * [--to=<date>]
+	 * : End date (Y-m-d).
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     wp gfa preview --form-ids=1,2
+	 *     wp gfa preview --form-ids=1 --from=2024-01-01 --to=2024-12-31
+	 *
+	 * @param array<int, string>   $args       Positional args.
+	 * @param array<string, mixed> $assoc_args Associative args.
+	 */
+	public function preview( array $args, array $assoc_args ): void {
+		$form_ids = $this->parse_form_ids( $assoc_args );
+		if ( empty( $form_ids ) ) {
+			WP_CLI::error( 'Provide --form-ids=1,2 with at least one valid form ID.' );
+		}
+
+		$from    = isset( $assoc_args['from'] ) ? (string) $assoc_args['from'] : '';
+		$to      = isset( $assoc_args['to'] ) ? (string) $assoc_args['to'] : '';
+		$range   = new GFA_Date_Range( '' !== $from ? $from : null, '' !== $to ? $to : null );
+		$preview = new GFA_Export_Preview();
+
+		$result = $preview->get_preview( $form_ids, $range );
+		if ( is_wp_error( $result ) ) {
+			WP_CLI::error( $result->get_error_message() );
+		}
+
+		WP_CLI::log( 'Date range: ' . $result['date_label'] );
+		WP_CLI::log( 'Forms selected: ' . $result['form_count'] );
+		WP_CLI::log( 'Entries found: ' . $result['entry_count'] );
+
+		if ( ! empty( $result['empty_form_ids'] ) ) {
+			WP_CLI::warning( 'Empty forms: ' . implode( ', ', $result['empty_form_ids'] ) );
+		}
+
+		if ( ! $result['has_entries'] ) {
+			WP_CLI::warning( 'No entries match the current selection.' );
+		}
+
+		WP_CLI::success( 'Preview complete.' );
+	}
+
+	/**
 	 * @param array<string, mixed> $assoc_args CLI associative args.
 	 * @return int[]
 	 */

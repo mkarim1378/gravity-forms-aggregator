@@ -75,6 +75,7 @@ if ( ! function_exists( 'wp_tempnam' ) ) {
 
 require dirname( __DIR__ ) . '/includes/class-export-config.php';
 require dirname( __DIR__ ) . '/includes/class-export-row.php';
+require dirname( __DIR__ ) . '/includes/class-export-preview.php';
 require dirname( __DIR__ ) . '/includes/export/class-csv-exporter.php';
 require dirname( __DIR__ ) . '/includes/export/class-xlsx-writer.php';
 require dirname( __DIR__ ) . '/includes/export/class-xlsx-exporter.php';

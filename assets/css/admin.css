@@ -73,8 +73,30 @@
 	font-weight: 600;
 }
 
-.gfa-admin-wrap .gfa-panel-summary {
+.gfa-admin-wrap .gfa-panel-summary,
+.gfa-admin-wrap .gfa-panel-preview {
 	margin-bottom: 1.5em;
+}
+
+.gfa-admin-wrap .gfa-preview-loading {
+	display: flex;
+	align-items: center;
+	gap: 0.5em;
+	margin: 0.5em 0 0;
+}
+
+.gfa-admin-wrap .gfa-preview-loading .spinner {
+	float: none;
+	margin: 0;
+}
+
+.gfa-admin-wrap .gfa-preview-error {
+	margin-top: 0.5em;
+}
+
+.gfa-admin-wrap .gfa-export-button.gfa-is-loading,
+.gfa-admin-wrap .gfa-preview-button:disabled {
+	cursor: wait;
 }
 
 .gfa-admin-wrap tr.gfa-hidden-by-search {
