@@ -83,6 +83,63 @@ gfa_assert( false !== strpos( $csv_content, 'Form ID' ), 'CSV contains standard 
 gfa_assert( false !== strpos( $csv_content, 'user@example.com' ), 'CSV contains unescaped simple value' );
 gfa_assert( false !== strpos( $csv_content, 'hello, ""world""' ), 'CSV escapes comma-containing field value' );
 
+// XLSX writer produces a valid zip archive with standard headers and data rows.
+if ( GFA_Xlsx_Writer::is_supported() ) {
+	gfa_assert( 'A' === GFA_Xlsx_Writer::column_letter( 0 ), 'column_letter maps index 0 to A' );
+	gfa_assert( 'F' === GFA_Xlsx_Writer::column_letter( 5 ), 'column_letter maps index 5 to F' );
+	gfa_assert(
+		'hello &amp; world' === GFA_Xlsx_Writer::escape_xml_text( 'hello & world' ),
+		'escape_xml_text encodes ampersands'
+	);
+
+	$xlsx      = new GFA_Xlsx_Exporter( null );
+	$writer    = new GFA_Xlsx_Writer();
+	$xlsx_handle = fopen( 'php://memory', 'w+b' );
+	$opened    = $writer->open();
+	gfa_assert( true === $opened, 'Xlsx writer opens successfully' );
+
+	if ( true === $opened ) {
+		$writer->write_row( array_values( GFA_Export_Config::get_columns() ) );
+		$xlsx_rows = $xlsx->write_rows_to_writer(
+			$writer,
+			array(
+				GFA_Export_Row::from_array( $fixtures['complete'] ),
+				GFA_Export_Row::from_array( $fixtures['escaped'] ),
+			)
+		);
+		gfa_assert( 2 === $xlsx_rows, 'write_rows_to_writer writes two data rows' );
+
+		$finalized = $writer->finalize_to_handle( $xlsx_handle );
+		gfa_assert( true === $finalized, 'Xlsx writer finalizes to handle' );
+
+		rewind( $xlsx_handle );
+		$xlsx_bytes = stream_get_contents( $xlsx_handle );
+		fclose( $xlsx_handle );
+
+		gfa_assert( 0 === strpos( $xlsx_bytes, "PK" ), 'XLSX begins with ZIP signature' );
+
+		$zip_path = tempnam( sys_get_temp_dir(), 'gfa-xlsx-test-' );
+		file_put_contents( $zip_path, $xlsx_bytes );
+		$zip = new ZipArchive();
+		$zip_opened = $zip->open( $zip_path );
+		gfa_assert( true === $zip_opened, 'XLSX opens as zip archive' );
+
+		if ( true === $zip_opened ) {
+			$sheet_xml = $zip->getFromName( 'xl/worksheets/sheet1.xml' );
+			gfa_assert( false !== $sheet_xml, 'XLSX contains worksheet part' );
+			gfa_assert( false !== strpos( (string) $sheet_xml, 'Form ID' ), 'XLSX sheet contains standard header labels' );
+			gfa_assert( false !== strpos( (string) $sheet_xml, 'user@example.com' ), 'XLSX sheet contains exported value' );
+			gfa_assert( false !== strpos( (string) $sheet_xml, 'hello, &quot;world&quot;' ), 'XLSX sheet escapes special characters' );
+			$zip->close();
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink
+		@unlink( $zip_path );
+	}
+} else {
+	echo "SKIP: ZipArchive not available — XLSX tests omitted.\n";
+}
+
 if ( $failed > 0 ) {
 	echo "\n{$failed} test(s) failed.\n";
 	exit( 1 );

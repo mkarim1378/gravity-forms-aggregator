@@ -96,10 +96,12 @@
 
 **خروجی:**
 
-- [ ] فایل Excel با همان data model
-- [ ] باز شدن در Excel / Google Sheets
+- [x] فایل Excel با همان data model
+- [x] باز شدن در Excel / Google Sheets
 
-**نکته:** اگر پیچیده شد → فاز بعد.
+**وضعیت:** ✅ — `GFA_Xlsx_Exporter` + admin download
+
+**نکته:** Writer سبک بدون Composer (ZipArchive + OOXML).
 
 ---
 

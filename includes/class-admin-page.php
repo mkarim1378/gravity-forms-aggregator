@@ -136,7 +136,7 @@ final class GFA_Admin_Page {
 	}
 
 	/**
-	 * Handle export form POST — CSV download or XLSX placeholder.
+	 * Handle export form POST — CSV or XLSX download.
 	 */
 	public function handle_post(): void {
 		if ( ! isset( $_POST['gfa_export_action'] ) ) {
@@ -170,24 +170,17 @@ final class GFA_Admin_Page {
 			return;
 		}
 
-		$summary = $this->engine->get_summary( $parsed['form_ids'], $parsed['range'] );
-		if ( is_wp_error( $summary ) ) {
-			$this->notice_type    = 'error';
-			$this->notice_message = $summary->get_error_message();
+		if ( GFA_Export_Config::FORMAT_XLSX === $parsed['format'] ) {
+			$exporter = new GFA_Xlsx_Exporter( $this->engine );
+			$result   = $exporter->download( $parsed['form_ids'], $parsed['range'] );
+
+			if ( is_wp_error( $result ) ) {
+				$this->notice_type    = 'error';
+				$this->notice_message = $result->get_error_message();
+			}
+
 			return;
 		}
-
-		$this->extraction_summary = $summary;
-		$this->notice_type        = 'success';
-		$this->notice_message     = sprintf(
-			/* translators: 1: number of entries, 2: number of forms */
-			__(
-				'Extracted %1$d entries from %2$d form(s). Excel download will be available in a future release.',
-				'gravity-forms-aggregator'
-			),
-			(int) $summary['entry_count'],
-			(int) $summary['form_count']
-		);
 	}
 
 	/**

@@ -214,6 +214,93 @@ final class GFA_WP_CLI {
 	}
 
 	/**
+	 * Export selected forms to an XLSX file.
+	 *
+	 * ## OPTIONS
+	 *
+	 * [--form-ids=<ids>]
+	 * : Comma-separated form IDs.
+	 *
+	 * [--from=<date>]
+	 * : Start date (Y-m-d).
+	 *
+	 * [--to=<date>]
+	 * : End date (Y-m-d).
+	 *
+	 * [--output=<path>]
+	 * : Write XLSX to this file path (default: stdout).
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     wp gfa export-xlsx --form-ids=1,2 --output=/tmp/export.xlsx
+	 *     wp gfa export-xlsx --form-ids=1 --from=2024-01-01
+	 *
+	 * @param array<int, string>   $args       Positional args.
+	 * @param array<string, mixed> $assoc_args Associative args.
+	 */
+	public function export_xlsx( array $args, array $assoc_args ): void {
+		if ( ! GFA_Xlsx_Writer::is_supported() ) {
+			WP_CLI::error( 'The PHP Zip extension is required for Excel export.' );
+		}
+
+		$form_ids = $this->parse_form_ids( $assoc_args );
+		if ( empty( $form_ids ) ) {
+			WP_CLI::error( 'Provide --form-ids=1,2 with at least one valid form ID.' );
+		}
+
+		$from     = isset( $assoc_args['from'] ) ? (string) $assoc_args['from'] : '';
+		$to       = isset( $assoc_args['to'] ) ? (string) $assoc_args['to'] : '';
+		$output   = isset( $assoc_args['output'] ) ? (string) $assoc_args['output'] : '';
+		$range    = new GFA_Date_Range( '' !== $from ? $from : null, '' !== $to ? $to : null );
+		$engine   = new GFA_Export_Engine();
+		$exporter = new GFA_Xlsx_Exporter( $engine );
+
+		if ( '' !== $output ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+			$handle = fopen( $output, 'wb' );
+			if ( false === $handle ) {
+				WP_CLI::error( 'Could not open output file: ' . $output );
+			}
+
+			$row_count = $exporter->write_to_handle( $handle, $form_ids, $range );
+			fclose( $handle );
+
+			if ( is_wp_error( $row_count ) ) {
+				WP_CLI::error( $row_count->get_error_message() );
+			}
+
+			$error = $engine->get_last_error();
+			if ( $error instanceof WP_Error ) {
+				WP_CLI::error( $error->get_error_message() );
+			}
+
+			WP_CLI::success( sprintf( 'Wrote %d row(s) to %s', (int) $row_count, $output ) );
+			return;
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+		$handle = fopen( 'php://output', 'wb' );
+		if ( false === $handle ) {
+			WP_CLI::error( 'Could not open stdout.' );
+		}
+
+		$row_count = $exporter->write_to_handle( $handle, $form_ids, $range );
+		fclose( $handle );
+
+		if ( is_wp_error( $row_count ) ) {
+			WP_CLI::error( $row_count->get_error_message() );
+		}
+
+		$error = $engine->get_last_error();
+		if ( $error instanceof WP_Error ) {
+			WP_CLI::error( $error->get_error_message() );
+		}
+
+		WP_CLI::log( '' );
+		WP_CLI::success( sprintf( 'Exported %d row(s) to stdout.', (int) $row_count ) );
+	}
+
+	/**
 	 * @param array<string, mixed> $assoc_args CLI associative args.
 	 * @return int[]
 	 */

@@ -52,6 +52,29 @@ if ( ! class_exists( 'WP_Error' ) ) {
 	}
 }
 
+if ( ! function_exists( 'is_wp_error' ) ) {
+	/**
+	 * @param mixed $thing Value to test.
+	 * @return bool
+	 */
+	function is_wp_error( $thing ) {
+		return $thing instanceof WP_Error;
+	}
+}
+
+if ( ! function_exists( 'wp_tempnam' ) ) {
+	/**
+	 * @param string $filename Suggested filename prefix.
+	 * @return string|false
+	 */
+	function wp_tempnam( $filename = '' ) {
+		unset( $filename );
+		return tempnam( sys_get_temp_dir(), 'gfa-' );
+	}
+}
+
 require dirname( __DIR__ ) . '/includes/class-export-config.php';
 require dirname( __DIR__ ) . '/includes/class-export-row.php';
 require dirname( __DIR__ ) . '/includes/export/class-csv-exporter.php';
+require dirname( __DIR__ ) . '/includes/export/class-xlsx-writer.php';
+require dirname( __DIR__ ) . '/includes/export/class-xlsx-exporter.php';
