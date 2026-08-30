@@ -63,10 +63,12 @@
 
 **خروجی:**
 
-- [ ] دریافت entryهای فرم‌های انتخاب‌شده
-- [ ] اعمال فیلتر تاریخ
-- [ ] ساختار unified data
-- [ ] unit/integration test با داده نمونه
+- [x] دریافت entryهای فرم‌های انتخاب‌شده
+- [x] اعمال فیلتر تاریخ
+- [x] ساختار unified data (`GFA_Export_Row`)
+- [x] unit/integration test با داده نمونه (`tests/run-unit-tests.php`, `wp gfa extract`)
+
+**وضعیت:** ✅ — `GFA_Export_Engine` + batching
 
 **نکته:** مهم‌ترین فاز فنی MVP.
 

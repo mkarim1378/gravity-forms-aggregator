@@ -191,21 +191,8 @@ final class GFA_Data_Extractor {
 				}
 
 				foreach ( $entries as $entry ) {
-					$row_base = array(
-						'form_id'    => (string) $form_id,
-						'form_title' => $form_title,
-						'entry_id'   => isset( $entry['id'] ) ? (string) $entry['id'] : '',
-						'entry_date' => isset( $entry['date_created'] ) ? (string) $entry['date_created'] : '',
-					);
-
 					foreach ( $fields as $mapped ) {
-						$row = array_merge(
-							$row_base,
-							array(
-								'field_label' => $mapped['label'],
-								'field_value' => GFA_Field_Mapper::get_field_value( $entry, $mapped ),
-							)
-						);
+						$row = GFA_Export_Row::from_entry_field( $form_id, $form_title, $entry, $mapped );
 
 						/**
 						 * Filter a single export row.
@@ -214,9 +201,10 @@ final class GFA_Data_Extractor {
 						 * @param array $entry  GF entry.
 						 * @param array $mapped Field mapping.
 						 */
-						$row = apply_filters( 'gfa_export_row', $row, $entry, $mapped );
+						$filtered = apply_filters( 'gfa_export_row', $row->to_array(), $entry, $mapped );
+						$row      = GFA_Export_Row::from_array( is_array( $filtered ) ? $filtered : $row->to_array() );
 
-						yield $row;
+						yield $row->to_array();
 					}
 				}
 

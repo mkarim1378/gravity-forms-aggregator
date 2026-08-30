@@ -17,11 +17,14 @@ final class GFA_Admin_Page {
 	/** @var self|null */
 	private static $instance = null;
 
-	/** @var GFA_Data_Extractor */
-	private $extractor;
+	/** @var GFA_Export_Engine */
+	private $engine;
 
 	/** @var array<string, mixed> */
 	private $form_state = array();
+
+	/** @var array<string, mixed> */
+	private $extraction_summary = array();
 
 	/** @var string */
 	private $notice_type = '';
@@ -41,7 +44,7 @@ final class GFA_Admin_Page {
 	}
 
 	private function __construct() {
-		$this->extractor = new GFA_Data_Extractor();
+		$this->engine = new GFA_Export_Engine();
 	}
 
 	/**
@@ -133,7 +136,7 @@ final class GFA_Admin_Page {
 	}
 
 	/**
-	 * Handle export form POST — validate only; no file is generated in Phase 3.
+	 * Handle export form POST — validate and run extraction summary (no file yet).
 	 */
 	public function handle_post(): void {
 		if ( ! isset( $_POST['gfa_export_action'] ) ) {
@@ -155,13 +158,23 @@ final class GFA_Admin_Page {
 			return;
 		}
 
-		$this->notice_type    = 'success';
-		$this->notice_message = sprintf(
-			/* translators: %s: export format slug (csv or xlsx) */
+		$summary = $this->engine->get_summary( $parsed['form_ids'], $parsed['range'] );
+		if ( is_wp_error( $summary ) ) {
+			$this->notice_type    = 'error';
+			$this->notice_message = $summary->get_error_message();
+			return;
+		}
+
+		$this->extraction_summary = $summary;
+		$this->notice_type        = 'success';
+		$this->notice_message     = sprintf(
+			/* translators: 1: number of entries, 2: number of forms, 3: export format */
 			__(
-				'Export request validated (%s). File download will be available in a future release.',
+				'Extracted %1$d entries from %2$d form(s) (%3$s). File download will be available in a future release.',
 				'gravity-forms-aggregator'
 			),
+			(int) $summary['entry_count'],
+			(int) $summary['form_count'],
 			strtoupper( $parsed['format'] )
 		);
 	}
@@ -174,7 +187,7 @@ final class GFA_Admin_Page {
 			wp_die( esc_html__( 'You do not have permission to access this page.', 'gravity-forms-aggregator' ) );
 		}
 
-		$forms = $this->extractor->get_forms();
+		$forms = $this->engine->get_extractor()->get_forms();
 		if ( is_wp_error( $forms ) ) {
 			$this->render_notice( 'error', $forms->get_error_message() );
 			return;
@@ -186,6 +199,10 @@ final class GFA_Admin_Page {
 
 		if ( '' !== $this->notice_message ) {
 			$this->render_notice( $this->notice_type, $this->notice_message );
+		}
+
+		if ( ! empty( $this->extraction_summary ) ) {
+			$this->render_extraction_summary( $this->extraction_summary );
 		}
 
 		$selected_ids = array_map( 'absint', (array) ( $this->form_state['form_ids'] ?? array() ) );
@@ -352,6 +369,59 @@ final class GFA_Admin_Page {
 	}
 
 	/**
+	 * Show extraction summary after a successful export request (Phase 4).
+	 *
+	 * @param array<string, mixed> $summary Summary from GFA_Export_Engine::get_summary().
+	 */
+	private function render_extraction_summary( array $summary ): void {
+		?>
+		<div class="gfa-panel gfa-panel-summary">
+			<h2><?php esc_html_e( 'Extraction summary', 'gravity-forms-aggregator' ); ?></h2>
+			<ul class="gfa-summary-list">
+				<li>
+					<?php
+					printf(
+						/* translators: %d: number of selected forms */
+						esc_html__( 'Forms selected: %d', 'gravity-forms-aggregator' ),
+						(int) ( $summary['form_count'] ?? 0 )
+					);
+					?>
+				</li>
+				<li>
+					<?php
+					printf(
+						/* translators: %d: number of entries */
+						esc_html__( 'Entries found: %d', 'gravity-forms-aggregator' ),
+						(int) ( $summary['entry_count'] ?? 0 )
+					);
+					?>
+				</li>
+				<li>
+					<?php
+					printf(
+						/* translators: %s: date range label */
+						esc_html__( 'Date range: %s', 'gravity-forms-aggregator' ),
+						esc_html( (string) ( $summary['date_label'] ?? '' ) )
+					);
+					?>
+				</li>
+			</ul>
+			<?php if ( ! empty( $summary['empty_form_ids'] ) ) : ?>
+				<p class="gfa-summary-warning">
+					<?php
+					printf(
+						/* translators: %s: comma-separated form IDs */
+						esc_html__( 'No entries in the selected date range for form ID(s): %s', 'gravity-forms-aggregator' ),
+						esc_html( implode( ', ', array_map( 'strval', (array) $summary['empty_form_ids'] ) ) )
+					);
+					?>
+				</p>
+			<?php endif; ?>
+		</div>
+		<?php
+	}
+
+	/**
 	 * @return array<string, mixed>
 	 */
 	private function default_form_state(): array {
@@ -429,7 +499,7 @@ final class GFA_Admin_Page {
 			);
 		}
 
-		$request_validation = $this->extractor->validate_export_request( $form_ids, $range );
+		$request_validation = $this->engine->get_extractor()->validate_export_request( $form_ids, $range );
 		if ( is_wp_error( $request_validation ) ) {
 			return $request_validation;
 		}
@@ -471,7 +541,7 @@ final class GFA_Admin_Page {
 	 * @return int[]
 	 */
 	private function filter_existing_form_ids( array $form_ids ): array {
-		$forms = $this->extractor->get_forms();
+		$forms = $this->engine->get_extractor()->get_forms();
 		if ( is_wp_error( $forms ) || empty( $forms ) ) {
 			return array();
 		}

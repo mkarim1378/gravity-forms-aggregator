@@ -4,7 +4,7 @@ Tags: gravity forms, export, csv, excel
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.3.0
+Stable tag: 0.4.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -28,6 +28,9 @@ No additional database tables are created — data is read directly from Gravity
 3. Ensure Gravity Forms is installed and active
 
 == Changelog ==
+
+= 0.4.0 =
+* Phase 4: export engine, unified export rows, WP-CLI extract, unit tests
 
 = 0.3.0 =
 * Phase 3: admin UI for form selection, date range filter, export validation
