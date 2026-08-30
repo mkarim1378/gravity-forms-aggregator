@@ -4,7 +4,7 @@ Tags: gravity forms, export, csv, excel
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.8.0
+Stable tag: 0.8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -28,6 +28,9 @@ No additional database tables are created — data is read directly from Gravity
 3. Ensure Gravity Forms is installed and active
 
 == Changelog ==
+
+= 0.8.1 =
+* Fix Aggregate Export admin menu 404 by registering via Gravity Forms gform_addon_navigation
 
 = 0.8.0 =
 * Phase 8: export runtime optimization, custom capability, phone-only export mode, presets, recent export history, stale form warnings

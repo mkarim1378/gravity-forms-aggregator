@@ -55,12 +55,24 @@ final class GFA_Admin_Page {
 	 * Register hooks.
 	 */
 	public function register(): void {
-		add_action( 'admin_menu', array( $this, 'register_menu' ) );
+		if ( class_exists( 'GFForms' ) ) {
+			add_filter( 'gform_addon_navigation', array( $this, 'register_gf_menu' ) );
+		} else {
+			add_action( 'admin_menu', array( $this, 'register_tools_menu' ) );
+		}
+
 		add_action( 'admin_init', array( $this, 'handle_post' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
 		add_action( 'wp_ajax_gfa_export_preview', array( $this, 'ajax_preview' ) );
 		add_action( 'wp_ajax_gfa_save_preset', array( $this, 'ajax_save_preset' ) );
 		add_action( 'wp_ajax_gfa_delete_preset', array( $this, 'ajax_delete_preset' ) );
+	}
+
+	/**
+	 * Admin screen URL (admin.php?page=gfa-export).
+	 */
+	public static function get_page_url(): string {
+		return admin_url( 'admin.php?page=' . self::PAGE_SLUG );
 	}
 
 	/**
@@ -76,32 +88,35 @@ final class GFA_Admin_Page {
 	}
 
 	/**
-	 * Add submenu under Gravity Forms (fallback: Tools).
+	 * Register under the Gravity Forms menu via the official add-on navigation API.
+	 *
+	 * Using add_submenu_page( 'gf_edit_forms', … ) directly can produce a broken
+	 * /wp-admin/gfa-export URL when the parent menu is not registered yet.
+	 *
+	 * @param array<int, array<string, mixed>> $menu_items GF add-on menu definitions.
+	 * @return array<int, array<string, mixed>>
 	 */
-	public function register_menu(): void {
-		$capability = self::required_capability();
-		$menu_title   = __( 'Aggregate Export', 'gravity-forms-aggregator' );
-		$page_title   = __( 'Gravity Forms Aggregator', 'gravity-forms-aggregator' );
-		$callback     = array( $this, 'render_page' );
+	public function register_gf_menu( array $menu_items ): array {
+		$menu_items[] = array(
+			'name'       => self::PAGE_SLUG,
+			'label'      => __( 'Aggregate Export', 'gravity-forms-aggregator' ),
+			'callback'   => array( $this, 'render_page' ),
+			'permission' => self::required_capability(),
+		);
 
-		if ( class_exists( 'GFForms' ) ) {
-			add_submenu_page(
-				'gf_edit_forms',
-				$page_title,
-				$menu_title,
-				$capability,
-				self::PAGE_SLUG,
-				$callback
-			);
-			return;
-		}
+		return $menu_items;
+	}
 
+	/**
+	 * Fallback when Gravity Forms is not active.
+	 */
+	public function register_tools_menu(): void {
 		add_management_page(
-			$page_title,
-			$menu_title,
-			$capability,
+			__( 'Gravity Forms Aggregator', 'gravity-forms-aggregator' ),
+			__( 'Aggregate Export', 'gravity-forms-aggregator' ),
+			self::required_capability(),
 			self::PAGE_SLUG,
-			$callback
+			array( $this, 'render_page' )
 		);
 	}
 
@@ -875,6 +890,11 @@ final class GFA_Admin_Page {
 	 * @param string $hook_suffix Admin hook suffix.
 	 */
 	private function is_export_screen( string $hook_suffix ): bool {
-		return false !== strpos( $hook_suffix, self::PAGE_SLUG );
+		if ( false !== strpos( $hook_suffix, self::PAGE_SLUG ) ) {
+			return true;
+		}
+
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- screen detection only.
+		return isset( $_GET['page'] ) && self::PAGE_SLUG === sanitize_key( wp_unslash( $_GET['page'] ) );
 	}
 }

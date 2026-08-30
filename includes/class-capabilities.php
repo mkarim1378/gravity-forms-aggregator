@@ -19,6 +19,20 @@ final class GFA_Capabilities {
 	 */
 	public static function register(): void {
 		add_filter( 'gfa_export_capability', array( __CLASS__, 'default_capability' ) );
+		add_action( 'admin_init', array( __CLASS__, 'maybe_sync_administrator_cap' ) );
+	}
+
+	/**
+	 * Ensure administrators receive the export cap after upgrades (not only on activation).
+	 */
+	public static function maybe_sync_administrator_cap(): void {
+		$synced_version = get_option( 'gfa_capabilities_synced', '' );
+		if ( GFA_VERSION === $synced_version ) {
+			return;
+		}
+
+		self::activate();
+		update_option( 'gfa_capabilities_synced', GFA_VERSION, false );
 	}
 
 	/**
