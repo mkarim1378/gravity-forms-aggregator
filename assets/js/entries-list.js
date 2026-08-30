@@ -7,6 +7,7 @@
 
 	var fromDate = document.getElementById('gfa-entries-from-date');
 	var toDate = document.getElementById('gfa-entries-to-date');
+	var searchInput = document.getElementById('gfa-entries-search');
 	var applyBtn = document.getElementById('gfa-entries-apply');
 	var dateError = document.getElementById('gfa-entries-date-error');
 	var tbody = document.getElementById('gfa-entries-tbody');
@@ -128,6 +129,9 @@
 		if (toDate && toDate.value) {
 			payload.append('gfa_to_date', toDate.value);
 		}
+		if (searchInput && searchInput.value.trim()) {
+			payload.append('gfa_search', searchInput.value.trim());
+		}
 
 		listRequest = new XMLHttpRequest();
 		listRequest.open('POST', gfaEntriesList.ajaxUrl, true);
@@ -183,6 +187,16 @@
 		applyBtn.addEventListener('click', function () {
 			currentPage = 1;
 			loadPage(1);
+		});
+	}
+
+	if (searchInput) {
+		searchInput.addEventListener('keydown', function (event) {
+			if (event.key === 'Enter') {
+				event.preventDefault();
+				currentPage = 1;
+				loadPage(1);
+			}
 		});
 	}
 

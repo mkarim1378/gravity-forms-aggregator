@@ -83,7 +83,18 @@ if ( ! function_exists( 'wp_tempnam' ) ) {
 	}
 }
 
+if ( ! function_exists( 'wp_timezone' ) ) {
+	/**
+	 * @return DateTimeZone
+	 */
+	function wp_timezone() {
+		return new DateTimeZone( 'UTC' );
+	}
+}
+
 require dirname( __DIR__ ) . '/includes/class-export-config.php';
+require dirname( __DIR__ ) . '/includes/class-date-range.php';
+require dirname( __DIR__ ) . '/includes/class-data-extractor.php';
 require dirname( __DIR__ ) . '/includes/class-export-row.php';
 require dirname( __DIR__ ) . '/includes/class-form-insights.php';
 require dirname( __DIR__ ) . '/includes/class-field-mapper.php';

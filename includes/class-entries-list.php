@@ -45,6 +45,7 @@ final class GFA_Entries_List {
 	 * @param GFA_Date_Range $range    Date filter.
 	 * @param int            $page     1-based page number.
 	 * @param int            $per_page Rows per page.
+	 * @param string         $search   Name or mobile substring (empty = all entries).
 	 * @return array{
 	 *     rows: array<int, array<string, string>>,
 	 *     total: int,
@@ -54,7 +55,7 @@ final class GFA_Entries_List {
 	 *     date_label: string
 	 * }|WP_Error
 	 */
-	public function get_page( array $form_ids, GFA_Date_Range $range, int $page, int $per_page = self::DEFAULT_PER_PAGE ) {
+	public function get_page( array $form_ids, GFA_Date_Range $range, int $page, int $per_page = self::DEFAULT_PER_PAGE, string $search = '' ) {
 		$form_ids = $this->resolve_form_ids( $form_ids );
 		if ( is_wp_error( $form_ids ) ) {
 			return $form_ids;
@@ -79,7 +80,12 @@ final class GFA_Entries_List {
 			);
 		}
 
-		$total = $this->extractor->count_entries( $form_ids, $range );
+		$contexts = $this->build_form_contexts( $form_ids, $range, $search );
+		if ( is_wp_error( $contexts ) ) {
+			return $contexts;
+		}
+
+		$total = $this->count_context_entries( $contexts );
 		if ( is_wp_error( $total ) ) {
 			return $total;
 		}
@@ -88,7 +94,7 @@ final class GFA_Entries_List {
 		$per_page = min( self::MAX_PER_PAGE, max( 1, $per_page ) );
 		$offset   = ( $page - 1 ) * $per_page;
 
-		$rows = $this->fetch_merged_page( $form_ids, $range, $offset, $per_page );
+		$rows = $this->fetch_merged_page( $contexts, $offset, $per_page );
 		if ( is_wp_error( $rows ) ) {
 			return $rows;
 		}
@@ -140,22 +146,14 @@ final class GFA_Entries_List {
 	}
 
 	/**
-	 * Multi-way merge of per-form entry streams (date_created DESC).
-	 *
 	 * @param int[]          $form_ids Form IDs.
 	 * @param GFA_Date_Range $range    Date filter.
-	 * @param int            $offset   Global offset.
-	 * @param int            $limit    Max rows to return.
-	 * @return array<int, array<string, string>>|WP_Error
+	 * @param string         $search   Name or mobile substring.
+	 * @return array<int, array<string, mixed>>|WP_Error
 	 */
-	private function fetch_merged_page( array $form_ids, GFA_Date_Range $range, int $offset, int $limit ) {
-		$criteria = $this->extractor->get_entry_search_criteria( $range );
-		$sorting  = array(
-			'key'       => 'date_created',
-			'direction' => 'DESC',
-		);
-
+	private function build_form_contexts( array $form_ids, GFA_Date_Range $range, string $search ) {
 		$contexts = array();
+
 		foreach ( $form_ids as $form_id ) {
 			$form = GFAPI::get_form( $form_id );
 			if ( is_wp_error( $form ) ) {
@@ -163,19 +161,67 @@ final class GFA_Entries_List {
 			}
 
 			$resolved = GFA_Entry_Field_Resolver::resolve( $form );
+			$search_criteria = $this->extractor->build_form_entry_search_criteria(
+				$range,
+				$search,
+				$resolved['name'],
+				$resolved['mobile']
+			);
 
 			$contexts[] = array(
 				'form_id'      => $form_id,
 				'form_title'   => isset( $form['title'] ) ? (string) $form['title'] : '',
 				'name_field'   => $resolved['name'],
 				'mobile_field' => $resolved['mobile'],
+				'criteria'     => $search_criteria['criteria'],
+				'searchable'   => $search_criteria['searchable'],
 				'offset'       => 0,
 				'buffer'       => array(),
 				'buffer_index' => 0,
-				'exhausted'    => false,
-				'no_more'      => false,
+				'exhausted'    => ! $search_criteria['searchable'],
+				'no_more'      => ! $search_criteria['searchable'],
 			);
 		}
+
+		return $contexts;
+	}
+
+	/**
+	 * @param array<int, array<string, mixed>> $contexts Per-form merge state.
+	 * @return int|WP_Error
+	 */
+	private function count_context_entries( array $contexts ) {
+		$total = 0;
+
+		foreach ( $contexts as $context ) {
+			if ( empty( $context['searchable'] ) ) {
+				continue;
+			}
+
+			$count = GFAPI::count_entries( (int) $context['form_id'], $context['criteria'] );
+			if ( is_wp_error( $count ) ) {
+				return $count;
+			}
+
+			$total += (int) $count;
+		}
+
+		return $total;
+	}
+
+	/**
+	 * Multi-way merge of per-form entry streams (date_created DESC).
+	 *
+	 * @param array<int, array<string, mixed>> $contexts Per-form merge state.
+	 * @param int                              $offset   Global offset.
+	 * @param int                              $limit    Max rows to return.
+	 * @return array<int, array<string, string>>|WP_Error
+	 */
+	private function fetch_merged_page( array $contexts, int $offset, int $limit ) {
+		$sorting = array(
+			'key'       => 'date_created',
+			'direction' => 'DESC',
+		);
 
 		$results = array();
 		$skipped = 0;
@@ -191,7 +237,7 @@ final class GFA_Entries_List {
 				}
 
 				if ( $context['buffer_index'] >= count( $context['buffer'] ) ) {
-					$loaded = $this->load_next_batch( $context, $criteria, $sorting );
+					$loaded = $this->load_next_batch( $context, $sorting );
 					if ( is_wp_error( $loaded ) ) {
 						return $loaded;
 					}
@@ -249,18 +295,17 @@ final class GFA_Entries_List {
 	}
 
 	/**
-	 * @param array<string, mixed> $context   Per-form merge state.
-	 * @param array<string, mixed> $criteria  GF search criteria.
-	 * @param array<string, string> $sorting  GF sort definition.
+	 * @param array<string, mixed>  $context Per-form merge state.
+	 * @param array<string, string> $sorting GF sort definition.
 	 * @return array<string, mixed>|WP_Error
 	 */
-	private function load_next_batch( array $context, array $criteria, array $sorting ) {
+	private function load_next_batch( array $context, array $sorting ) {
 		$paging = array(
 			'offset'    => (int) $context['offset'],
 			'page_size' => self::MERGE_BATCH_SIZE,
 		);
 
-		$entries = GFAPI::get_entries( (int) $context['form_id'], $criteria, $sorting, $paging );
+		$entries = GFAPI::get_entries( (int) $context['form_id'], $context['criteria'], $sorting, $paging );
 		if ( is_wp_error( $entries ) ) {
 			return $entries;
 		}

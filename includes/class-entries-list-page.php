@@ -144,7 +144,8 @@ final class GFA_Entries_List_Page {
 			$parsed['form_ids'],
 			$parsed['range'],
 			$parsed['page'],
-			$parsed['per_page']
+			$parsed['per_page'],
+			$parsed['search']
 		);
 
 		if ( is_wp_error( $result ) ) {
@@ -174,9 +175,10 @@ final class GFA_Entries_List_Page {
 
 		$from_date = isset( $_GET['from'] ) ? sanitize_text_field( wp_unslash( $_GET['from'] ) ) : '';
 		$to_date   = isset( $_GET['to'] ) ? sanitize_text_field( wp_unslash( $_GET['to'] ) ) : '';
+		$search    = isset( $_GET['search'] ) ? sanitize_text_field( wp_unslash( $_GET['search'] ) ) : '';
 		$page      = isset( $_GET['paged'] ) ? max( 1, absint( $_GET['paged'] ) ) : 1;
 
-		$parsed = $this->parse_list_request_from_values( $from_date, $to_date, $page, GFA_Entries_List::DEFAULT_PER_PAGE, array() );
+		$parsed = $this->parse_list_request_from_values( $from_date, $to_date, $page, GFA_Entries_List::DEFAULT_PER_PAGE, array(), $search );
 		$result = null;
 		$error  = '';
 
@@ -187,7 +189,8 @@ final class GFA_Entries_List_Page {
 				$parsed['form_ids'],
 				$parsed['range'],
 				$parsed['page'],
-				$parsed['per_page']
+				$parsed['per_page'],
+				$parsed['search']
 			);
 
 			if ( is_wp_error( $result ) ) {
@@ -208,6 +211,16 @@ final class GFA_Entries_List_Page {
 			<div class="gfa-panel gfa-panel-entries-filters">
 				<h2><?php esc_html_e( 'Filters', 'gravity-forms-aggregator' ); ?></h2>
 				<div class="gfa-date-fields">
+					<p>
+						<label for="gfa-entries-search"><?php esc_html_e( 'Search', 'gravity-forms-aggregator' ); ?></label>
+						<input
+							type="search"
+							id="gfa-entries-search"
+							class="gfa-form-search"
+							value="<?php echo esc_attr( $search ); ?>"
+							placeholder="<?php esc_attr_e( 'Name or phone number…', 'gravity-forms-aggregator' ); ?>"
+						/>
+					</p>
 					<p>
 						<label for="gfa-entries-from-date"><?php esc_html_e( 'From date', 'gravity-forms-aggregator' ); ?></label>
 						<input type="date" id="gfa-entries-from-date" value="<?php echo esc_attr( $from_date ); ?>" />
@@ -359,7 +372,7 @@ final class GFA_Entries_List_Page {
 	}
 
 	/**
-	 * @return array{form_ids: int[], range: GFA_Date_Range, page: int, per_page: int}|WP_Error
+	 * @return array{form_ids: int[], range: GFA_Date_Range, page: int, per_page: int, search: string}|WP_Error
 	 */
 	private function parse_list_request() {
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only list params.
@@ -370,8 +383,10 @@ final class GFA_Entries_List_Page {
 		$page = isset( $_REQUEST['gfa_page'] ) ? max( 1, absint( $_REQUEST['gfa_page'] ) ) : 1;
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only list params.
 		$per_page = isset( $_REQUEST['gfa_per_page'] ) ? absint( $_REQUEST['gfa_per_page'] ) : GFA_Entries_List::DEFAULT_PER_PAGE;
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only list params.
+		$search = isset( $_REQUEST['gfa_search'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['gfa_search'] ) ) : '';
 
-		return $this->parse_list_request_from_values( $from_date, $to_date, $page, $per_page, array() );
+		return $this->parse_list_request_from_values( $from_date, $to_date, $page, $per_page, array(), $search );
 	}
 
 	/**
@@ -380,9 +395,10 @@ final class GFA_Entries_List_Page {
 	 * @param int    $page      Page number.
 	 * @param int    $per_page  Rows per page.
 	 * @param int[]  $form_ids  Form IDs (empty = all).
-	 * @return array{form_ids: int[], range: GFA_Date_Range, page: int, per_page: int}|WP_Error
+	 * @param string $search    Name or mobile substring.
+	 * @return array{form_ids: int[], range: GFA_Date_Range, page: int, per_page: int, search: string}|WP_Error
 	 */
-	private function parse_list_request_from_values( string $from_date, string $to_date, int $page, int $per_page, array $form_ids ) {
+	private function parse_list_request_from_values( string $from_date, string $to_date, int $page, int $per_page, array $form_ids, string $search = '' ) {
 		$from_raw = trim( $from_date );
 		$to_raw   = trim( $to_date );
 
@@ -415,6 +431,7 @@ final class GFA_Entries_List_Page {
 			'range'    => $range,
 			'page'     => max( 1, $page ),
 			'per_page' => min( GFA_Entries_List::MAX_PER_PAGE, max( 1, $per_page ) ),
+			'search'   => trim( $search ),
 		);
 	}
 

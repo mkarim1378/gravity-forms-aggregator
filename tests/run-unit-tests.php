@@ -259,6 +259,49 @@ gfa_assert( 'Paid' === GFA_Entry_Summary_Row::format_payment_status( array( 'pay
 gfa_assert( '' === GFA_Entry_Summary_Row::format_payment_status( array( 'payment_status' => '' ) ), 'empty payment status stays empty' );
 gfa_assert( 'Custom' === GFA_Entry_Summary_Row::format_payment_status( array( 'payment_status' => 'Custom' ) ), 'unknown payment status passes through' );
 
+$range = new GFA_Date_Range( null, null );
+$extractor = new GFA_Data_Extractor();
+
+$no_search = $extractor->build_form_entry_search_criteria(
+	$range,
+	'',
+	array( 'key' => '1', 'label' => 'Name', 'field' => null ),
+	array( 'key' => '2', 'label' => 'Mobile', 'field' => null )
+);
+gfa_assert( true === $no_search['searchable'], 'empty search leaves form searchable' );
+gfa_assert( ! isset( $no_search['criteria']['field_filters'] ), 'empty search adds no field filters' );
+
+$name_only = $extractor->build_form_entry_search_criteria(
+	$range,
+	'Ali',
+	array( 'key' => '1', 'label' => 'Name', 'field' => null ),
+	null
+);
+gfa_assert( true === $name_only['searchable'], 'name-only search is searchable' );
+gfa_assert(
+	1 === count( $name_only['criteria']['field_filters'] ),
+	'name-only search adds one field filter'
+);
+gfa_assert(
+	'contains' === $name_only['criteria']['field_filters'][0]['operator'],
+	'name search uses contains operator'
+);
+
+$both_fields = $extractor->build_form_entry_search_criteria(
+	$range,
+	'0912',
+	array( 'key' => '1', 'label' => 'Name', 'field' => null ),
+	array( 'key' => '2', 'label' => 'Mobile', 'field' => null )
+);
+gfa_assert( true === $both_fields['searchable'], 'name and mobile search is searchable' );
+gfa_assert(
+	'any' === $both_fields['criteria']['field_filters'][0]['mode'],
+	'name/mobile search uses OR mode'
+);
+
+$unmapped = $extractor->build_form_entry_search_criteria( $range, 'test', null, null );
+gfa_assert( false === $unmapped['searchable'], 'search with no mapped fields is not searchable' );
+
 if ( $failed > 0 ) {
 	echo "\n{$failed} test(s) failed.\n";
 	exit( 1 );

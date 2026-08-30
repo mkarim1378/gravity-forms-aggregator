@@ -234,6 +234,71 @@ final class GFA_Data_Extractor {
 		return $this->build_search_criteria( $range );
 	}
 
+	/**
+	 * GF entry search criteria for one form, optionally filtered by name/mobile.
+	 *
+	 * When $search is non-empty, matches entries whose resolved name or mobile field
+	 * contains the query (OR). Forms without mapped name/mobile fields match nothing.
+	 *
+	 * @param GFA_Date_Range $range        Date filter.
+	 * @param string         $search       Name or phone substring (empty = no text filter).
+	 * @param array|null     $name_field   Mapped name field from GFA_Entry_Field_Resolver.
+	 * @param array|null     $mobile_field Mapped mobile field from GFA_Entry_Field_Resolver.
+	 * @return array{ criteria: array<string, mixed>, searchable: bool }
+	 */
+	public function build_form_entry_search_criteria(
+		GFA_Date_Range $range,
+		string $search,
+		?array $name_field,
+		?array $mobile_field
+	): array {
+		$criteria = $this->build_search_criteria( $range );
+		$search   = trim( $search );
+
+		if ( '' === $search ) {
+			return array(
+				'criteria'   => $criteria,
+				'searchable' => true,
+			);
+		}
+
+		$filters = array();
+
+		if ( null !== $name_field && ! empty( $name_field['key'] ) ) {
+			$filters[] = array(
+				'key'      => (string) $name_field['key'],
+				'value'    => $search,
+				'operator' => 'contains',
+			);
+		}
+
+		if ( null !== $mobile_field && ! empty( $mobile_field['key'] ) ) {
+			$filters[] = array(
+				'key'      => (string) $mobile_field['key'],
+				'value'    => $search,
+				'operator' => 'contains',
+			);
+		}
+
+		if ( empty( $filters ) ) {
+			return array(
+				'criteria'   => $criteria,
+				'searchable' => false,
+			);
+		}
+
+		if ( count( $filters ) > 1 ) {
+			array_unshift( $filters, array( 'mode' => 'any' ) );
+		}
+
+		$criteria['field_filters'] = $filters;
+
+		return array(
+			'criteria'   => $criteria,
+			'searchable' => true,
+		);
+	}
+
 	/** @var WP_Error|null */
 	private $last_error = null;
 
