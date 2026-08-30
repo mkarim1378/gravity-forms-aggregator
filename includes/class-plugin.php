@@ -51,6 +51,11 @@ final class GFA_Plugin {
 			require_once GFA_PLUGIN_DIR . 'includes/class-wp-cli.php';
 			WP_CLI::add_command( 'gfa', 'GFA_WP_CLI' );
 		}
+
+		if ( is_admin() ) {
+			require_once GFA_PLUGIN_DIR . 'includes/class-admin-page.php';
+			GFA_Admin_Page::instance()->register();
+		}
 	}
 
 	/**

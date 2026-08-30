@@ -46,10 +46,12 @@
 
 **خروجی:**
 
-- [ ] لیست فرم‌ها + checkbox
-- [ ] date range picker
-- [ ] دکمه export (بدون تولید فایل واقعی)
-- [ ] validation سمت client/server
+- [x] لیست فرم‌ها + checkbox
+- [x] date range picker
+- [x] دکمه export (بدون تولید فایل واقعی)
+- [x] validation سمت client/server
+
+**وضعیت:** ✅ — `GFA_Admin_Page` + assets
 
 **نکته:** هنوز خروجی فایل ساخته نمی‌شود.
 

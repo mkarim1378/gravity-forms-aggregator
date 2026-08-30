@@ -1,0 +1,68 @@
+.gfa-admin-wrap .gfa-panel {
+	margin-top: 1.5em;
+	padding: 1em 1.25em;
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+}
+
+.gfa-admin-wrap .gfa-panel-header {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75em;
+	margin-bottom: 1em;
+}
+
+.gfa-admin-wrap .gfa-panel-header h2,
+.gfa-admin-wrap .gfa-panel > h2 {
+	margin: 0 0 0.5em;
+}
+
+.gfa-admin-wrap .gfa-panel-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5em;
+}
+
+.gfa-admin-wrap .gfa-form-search {
+	min-width: 220px;
+}
+
+.gfa-admin-wrap .gfa-forms-table .gfa-form-inactive td,
+.gfa-admin-wrap .gfa-forms-table .gfa-form-inactive th {
+	color: #646970;
+}
+
+.gfa-admin-wrap .gfa-date-fields {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 1.5em;
+}
+
+.gfa-admin-wrap .gfa-date-fields label {
+	display: block;
+	font-weight: 600;
+	margin-bottom: 0.35em;
+}
+
+.gfa-admin-wrap .gfa-client-error {
+	color: #b32d2e;
+	font-weight: 600;
+}
+
+.gfa-admin-wrap .gfa-export-buttons {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5em;
+}
+
+.gfa-admin-wrap .gfa-export-button:disabled {
+	cursor: not-allowed;
+}
+
+.gfa-admin-wrap tr.gfa-hidden-by-search {
+	display: none;
+}
