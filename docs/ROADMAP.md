@@ -123,15 +123,18 @@
 
 **هدف:** آماده‌سازی برای نسخه‌های بعد
 
-**موارد قابل افزودن:**
+**خروجی:**
 
-- تاریخچه اکسپورت
-- هشدار فرم‌های قدیمی فعال
-- preset انتخاب‌های پرتکرار
-- فیلترهای بیشتر
-- Export mode: phone fields only
-- capability سفارشی
-- API
+- [x] بهینه‌سازی export (`GFA_Export_Runtime` — time limit + lifecycle hooks)
+- [x] تاریخچه اکسپورت per-user (`GFA_Export_History` — user meta)
+- [x] هشدار فرم‌های قدیمی فعال (`GFA_Form_Insights`)
+- [x] preset انتخاب‌های پرتکرار (`GFA_Export_Preset` — user meta)
+- [x] Export mode: phone fields only
+- [x] capability سفارشی `gfa_export_forms`
+
+**وضعیت:** ✅ — polish + extensibility (`0.8.0`)
+
+**فاز بعد (خارج از MVP):** API، فیلترهای بیشتر، audit سراسری
 
 ---
 

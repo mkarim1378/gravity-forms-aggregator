@@ -107,6 +107,55 @@ $empty_preview = GFA_Export_Preview::format_summary(
 );
 gfa_assert( false === $empty_preview['has_entries'], 'format_summary sets has_entries false for zero entries' );
 
+$stale_preview = GFA_Export_Preview::format_summary(
+	array(
+		'form_count'       => 2,
+		'entry_count'      => 5,
+		'date_label'       => 'All dates',
+		'empty_form_ids'   => array(),
+		'stale_form_ids'   => array( 3 ),
+		'export_mode'      => GFA_Export_Config::EXPORT_MODE_PHONE_FIELDS,
+		'export_mode_label'=> 'Phone fields only',
+	)
+);
+gfa_assert( array( 3 ) === $stale_preview['stale_form_ids'], 'format_summary includes stale_form_ids' );
+gfa_assert(
+	GFA_Export_Config::EXPORT_MODE_PHONE_FIELDS === $stale_preview['export_mode'],
+	'format_summary preserves export_mode'
+);
+
+gfa_assert( GFA_Export_Config::is_valid_mode( GFA_Export_Config::EXPORT_MODE_ALL_FIELDS ), 'all_fields is a valid export mode' );
+gfa_assert( GFA_Export_Config::is_valid_mode( GFA_Export_Config::EXPORT_MODE_PHONE_FIELDS ), 'phone_fields is a valid export mode' );
+gfa_assert( ! GFA_Export_Config::is_valid_mode( 'invalid_mode' ), 'unknown export mode is rejected' );
+
+gfa_assert(
+	true === GFA_Form_Insights::is_stale_active_form( true, null ),
+	'active form with no entries is stale'
+);
+gfa_assert(
+	false === GFA_Form_Insights::is_stale_active_form( false, null ),
+	'inactive form is not stale'
+);
+gfa_assert(
+	false === GFA_Form_Insights::is_stale_active_form( true, gmdate( 'Y-m-d H:i:s' ) ),
+	'active form with a recent entry is not stale'
+);
+
+$phone_field = (object) array( 'type' => 'phone' );
+$email_field = (object) array( 'type' => 'email' );
+gfa_assert(
+	true === GFA_Field_Mapper::matches_export_mode( $phone_field, GFA_Export_Config::EXPORT_MODE_PHONE_FIELDS ),
+	'phone field matches phone_fields mode'
+);
+gfa_assert(
+	false === GFA_Field_Mapper::matches_export_mode( $email_field, GFA_Export_Config::EXPORT_MODE_PHONE_FIELDS ),
+	'email field does not match phone_fields mode'
+);
+gfa_assert(
+	true === GFA_Field_Mapper::matches_export_mode( $email_field, GFA_Export_Config::EXPORT_MODE_ALL_FIELDS ),
+	'all_fields mode includes email fields'
+);
+
 // XLSX writer produces a valid zip archive with standard headers and data rows.
 if ( GFA_Xlsx_Writer::is_supported() ) {
 	gfa_assert( 'A' === GFA_Xlsx_Writer::column_letter( 0 ), 'column_letter maps index 0 to A' );

@@ -38,11 +38,16 @@ final class GFA_Data_Extractor {
 				continue;
 			}
 
+			$last_entry = GFA_Form_Insights::get_last_entry_date( $form_id );
+			$is_active  = ! empty( $form['is_active'] );
+
 			$list[] = array(
-				'id'          => $form_id,
-				'title'       => isset( $form['title'] ) ? (string) $form['title'] : '',
-				'is_active'   => ! empty( $form['is_active'] ),
-				'entry_count' => (int) GFAPI::count_entries( $form_id, $this->base_search_criteria() ),
+				'id'              => $form_id,
+				'title'           => isset( $form['title'] ) ? (string) $form['title'] : '',
+				'is_active'       => $is_active,
+				'entry_count'     => (int) GFAPI::count_entries( $form_id, $this->base_search_criteria() ),
+				'last_entry_date' => $last_entry,
+				'is_stale'        => GFA_Form_Insights::is_stale_active_form( $is_active, $last_entry ),
 			);
 		}
 
@@ -155,12 +160,14 @@ final class GFA_Data_Extractor {
 	 *
 	 * @param int[]          $form_ids Form IDs.
 	 * @param GFA_Date_Range $range    Date filter.
+	 * @param string         $mode     Export mode slug.
 	 * @return Generator<int, array<string, string>, mixed, void>
 	 */
-	public function iterate_rows( array $form_ids, GFA_Date_Range $range ) {
+	public function iterate_rows( array $form_ids, GFA_Date_Range $range, string $mode = '' ) {
 		$this->last_error = null;
 		$form_ids         = $this->sanitize_form_ids( $form_ids );
 		$criteria         = $this->build_search_criteria( $range );
+		$mode             = $this->normalize_export_mode( $mode );
 
 		foreach ( $form_ids as $form_id ) {
 			$form = GFAPI::get_form( $form_id );
@@ -169,7 +176,7 @@ final class GFA_Data_Extractor {
 				return;
 			}
 
-			$fields     = GFA_Field_Mapper::get_exportable_fields( $form );
+			$fields     = GFA_Field_Mapper::get_exportable_fields( $form, $mode );
 			$form_title = isset( $form['title'] ) ? (string) $form['title'] : '';
 			$offset     = 0;
 			$batch_size = (int) apply_filters( 'gfa_export_batch_size', self::BATCH_SIZE );
@@ -333,5 +340,18 @@ final class GFA_Data_Extractor {
 	 */
 	private function is_gfapi_available(): bool {
 		return class_exists( 'GFAPI' );
+	}
+
+	/**
+	 * @param string $mode Raw export mode.
+	 */
+	private function normalize_export_mode( string $mode ): string {
+		$mode = sanitize_key( $mode );
+
+		if ( ! GFA_Export_Config::is_valid_mode( $mode ) ) {
+			return GFA_Export_Config::get_default_export_mode();
+		}
+
+		return $mode;
 	}
 }

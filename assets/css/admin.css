@@ -102,3 +102,45 @@
 .gfa-admin-wrap tr.gfa-hidden-by-search {
 	display: none;
 }
+
+.gfa-admin-wrap .gfa-form-stale td,
+.gfa-admin-wrap .gfa-form-stale th {
+	background-color: #fff8e5;
+}
+
+.gfa-admin-wrap .gfa-stale-badge {
+	display: inline-block;
+	padding: 0.1em 0.45em;
+	margin-right: 0.25em;
+	border-radius: 3px;
+	background: #dba617;
+	color: #1d2327;
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+}
+
+.gfa-admin-wrap .gfa-preset-controls {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-end;
+	gap: 0.5em;
+}
+
+.gfa-admin-wrap .gfa-preset-controls label {
+	font-weight: 600;
+}
+
+.gfa-admin-wrap .gfa-preset-name {
+	min-width: 180px;
+}
+
+.gfa-admin-wrap .gfa-preset-notice {
+	color: #007017;
+	font-weight: 600;
+}
+
+.gfa-admin-wrap .gfa-history-list {
+	margin: 0.5em 0 0;
+	padding-left: 1.25em;
+}

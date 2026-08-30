@@ -62,6 +62,8 @@ final class GFA_Plugin {
 	 * Require Gravity Forms on activation.
 	 */
 	public function activate(): void {
+		GFA_Capabilities::activate();
+
 		if ( ! $this->is_gravity_forms_active() ) {
 			deactivate_plugins( plugin_basename( GFA_PLUGIN_FILE ) );
 			wp_die(

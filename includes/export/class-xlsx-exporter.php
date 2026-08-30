@@ -24,15 +24,27 @@ final class GFA_Xlsx_Exporter {
 	 *
 	 * @param int[]          $form_ids Form IDs.
 	 * @param GFA_Date_Range $range    Date filter.
+	 * @param string         $mode     Export mode slug.
 	 * @return true|WP_Error
 	 */
-	public function download( array $form_ids, GFA_Date_Range $range ) {
+	public function download( array $form_ids, GFA_Date_Range $range, string $mode = '' ) {
 		if ( ! $this->engine instanceof GFA_Export_Engine ) {
 			return new WP_Error(
 				'gfa_xlsx_engine_missing',
 				__( 'Export engine is not available.', 'gravity-forms-aggregator' )
 			);
 		}
+
+		$mode = $this->normalize_export_mode( $mode );
+
+		GFA_Export_Runtime::prepare_for_export(
+			array(
+				'form_ids'    => $form_ids,
+				'range'       => $range,
+				'format'      => GFA_Export_Config::FORMAT_XLSX,
+				'export_mode' => $mode,
+			)
+		);
 
 		$handle = fopen( 'php://temp', 'w+' );
 		if ( false === $handle ) {
@@ -42,7 +54,7 @@ final class GFA_Xlsx_Exporter {
 			);
 		}
 
-		$row_count = $this->write_to_handle( $handle, $form_ids, $range );
+		$row_count = $this->write_to_handle( $handle, $form_ids, $range, $mode );
 		if ( is_wp_error( $row_count ) ) {
 			fclose( $handle );
 			return $row_count;
@@ -53,6 +65,21 @@ final class GFA_Xlsx_Exporter {
 			fclose( $handle );
 			return $error;
 		}
+
+		$summary = $this->engine->get_summary( $form_ids, $range, $mode );
+		if ( ! is_wp_error( $summary ) ) {
+			$this->record_history( $summary, GFA_Export_Config::FORMAT_XLSX, (int) $row_count );
+		}
+
+		GFA_Export_Runtime::finish_export(
+			array(
+				'form_ids'    => $form_ids,
+				'range'       => $range,
+				'format'      => GFA_Export_Config::FORMAT_XLSX,
+				'export_mode' => $mode,
+				'row_count'   => (int) $row_count,
+			)
+		);
 
 		rewind( $handle );
 
@@ -72,9 +99,10 @@ final class GFA_Xlsx_Exporter {
 	 * @param resource       $handle   Writable stream.
 	 * @param int[]          $form_ids Form IDs.
 	 * @param GFA_Date_Range $range    Date filter.
+	 * @param string         $mode     Export mode slug.
 	 * @return int|WP_Error Number of data rows written (excluding header).
 	 */
-	public function write_to_handle( $handle, array $form_ids, GFA_Date_Range $range ) {
+	public function write_to_handle( $handle, array $form_ids, GFA_Date_Range $range, string $mode = '' ) {
 		if ( ! $this->engine instanceof GFA_Export_Engine ) {
 			return new WP_Error(
 				'gfa_xlsx_engine_missing',
@@ -100,7 +128,7 @@ final class GFA_Xlsx_Exporter {
 			return $header_written;
 		}
 
-		$row_count = $this->write_rows_to_writer( $writer, $this->engine->iterate_rows( $form_ids, $range ) );
+		$row_count = $this->write_rows_to_writer( $writer, $this->engine->iterate_rows( $form_ids, $range, $mode ) );
 		if ( is_wp_error( $row_count ) ) {
 			return $row_count;
 		}
@@ -167,5 +195,41 @@ final class GFA_Xlsx_Exporter {
 		header( 'Content-Disposition: attachment; filename="' . sanitize_file_name( $filename ) . '"' );
 		header( 'Content-Transfer-Encoding: binary' );
 		header( 'X-Content-Type-Options: nosniff' );
+	}
+
+	/**
+	 * @param array<string, mixed> $summary  Export summary.
+	 * @param string               $format Export format.
+	 * @param int                  $rows   Rows written.
+	 */
+	private function record_history( array $summary, string $format, int $rows ): void {
+		if ( ! function_exists( 'get_current_user_id' ) ) {
+			return;
+		}
+
+		GFA_Export_History::record(
+			get_current_user_id(),
+			array(
+				'timestamp'   => time(),
+				'form_ids'    => array_keys( (array) ( $summary['form_counts'] ?? array() ) ),
+				'entry_count' => (int) ( $summary['entry_count'] ?? $rows ),
+				'format'      => $format,
+				'export_mode' => (string) ( $summary['export_mode'] ?? GFA_Export_Config::get_default_export_mode() ),
+				'date_label'  => (string) ( $summary['date_label'] ?? '' ),
+			)
+		);
+	}
+
+	/**
+	 * @param string $mode Raw export mode.
+	 */
+	private function normalize_export_mode( string $mode ): string {
+		$mode = sanitize_key( $mode );
+
+		if ( ! GFA_Export_Config::is_valid_mode( $mode ) ) {
+			return GFA_Export_Config::get_default_export_mode();
+		}
+
+		return $mode;
 	}
 }

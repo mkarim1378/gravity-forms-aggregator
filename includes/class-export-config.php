@@ -12,7 +12,8 @@ defined( 'ABSPATH' ) || exit;
  */
 final class GFA_Export_Config {
 
-	public const EXPORT_MODE_ALL_FIELDS = 'all_fields';
+	public const EXPORT_MODE_ALL_FIELDS   = 'all_fields';
+	public const EXPORT_MODE_PHONE_FIELDS = 'phone_fields';
 
 	public const FORMAT_CSV  = 'csv';
 	public const FORMAT_XLSX = 'xlsx';
@@ -54,6 +55,45 @@ final class GFA_Export_Config {
 	 */
 	public static function get_default_export_mode(): string {
 		return self::EXPORT_MODE_ALL_FIELDS;
+	}
+
+	/**
+	 * Supported export modes.
+	 *
+	 * @return array<string, string> Mode slug => label.
+	 */
+	public static function get_export_modes(): array {
+		$modes = array(
+			self::EXPORT_MODE_ALL_FIELDS   => __( 'All fields', 'gravity-forms-aggregator' ),
+			self::EXPORT_MODE_PHONE_FIELDS => __( 'Phone fields only', 'gravity-forms-aggregator' ),
+		);
+
+		/**
+		 * Filter available export modes.
+		 *
+		 * @param array<string, string> $modes Mode slug => label.
+		 */
+		return apply_filters( 'gfa_export_modes', $modes );
+	}
+
+	/**
+	 * Validate export mode slug.
+	 *
+	 * @param string $mode User-selected mode.
+	 */
+	public static function is_valid_mode( string $mode ): bool {
+		return array_key_exists( $mode, self::get_export_modes() );
+	}
+
+	/**
+	 * Human-readable label for an export mode.
+	 *
+	 * @param string $mode Mode slug.
+	 */
+	public static function get_mode_label( string $mode ): string {
+		$modes = self::get_export_modes();
+
+		return $modes[ $mode ] ?? $mode;
 	}
 
 	/**

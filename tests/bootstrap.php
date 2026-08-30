@@ -27,6 +27,16 @@ if ( ! function_exists( 'apply_filters' ) ) {
 	}
 }
 
+if ( ! function_exists( 'sanitize_key' ) ) {
+	/**
+	 * @param string $key String key.
+	 * @return string
+	 */
+	function sanitize_key( $key ) {
+		return strtolower( preg_replace( '/[^a-z0-9_\-]/', '', (string) $key ) );
+	}
+}
+
 if ( ! class_exists( 'WP_Error' ) ) {
 	/**
 	 * Minimal WP_Error stub for standalone tests.
@@ -75,6 +85,8 @@ if ( ! function_exists( 'wp_tempnam' ) ) {
 
 require dirname( __DIR__ ) . '/includes/class-export-config.php';
 require dirname( __DIR__ ) . '/includes/class-export-row.php';
+require dirname( __DIR__ ) . '/includes/class-form-insights.php';
+require dirname( __DIR__ ) . '/includes/class-field-mapper.php';
 require dirname( __DIR__ ) . '/includes/class-export-preview.php';
 require dirname( __DIR__ ) . '/includes/export/class-csv-exporter.php';
 require dirname( __DIR__ ) . '/includes/export/class-xlsx-writer.php';

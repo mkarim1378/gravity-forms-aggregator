@@ -89,12 +89,13 @@ final class GFA_WP_CLI {
 		$from  = isset( $assoc_args['from'] ) ? (string) $assoc_args['from'] : '';
 		$to    = isset( $assoc_args['to'] ) ? (string) $assoc_args['to'] : '';
 		$limit = isset( $assoc_args['limit'] ) ? (int) $assoc_args['limit'] : 10;
+		$mode  = $this->parse_export_mode( $assoc_args );
 
 		$range  = new GFA_Date_Range( '' !== $from ? $from : null, '' !== $to ? $to : null );
 		$engine = new GFA_Export_Engine();
 
 		if ( 0 === $limit ) {
-			$summary = $engine->get_summary( $form_ids, $range );
+			$summary = $engine->get_summary( $form_ids, $range, $mode );
 			if ( is_wp_error( $summary ) ) {
 				WP_CLI::error( $summary->get_error_message() );
 			}
@@ -107,11 +108,15 @@ final class GFA_WP_CLI {
 				WP_CLI::warning( 'Empty forms: ' . implode( ', ', $summary['empty_form_ids'] ) );
 			}
 
+			if ( ! empty( $summary['stale_form_ids'] ) ) {
+				WP_CLI::warning( 'Stale active forms: ' . implode( ', ', $summary['stale_form_ids'] ) );
+			}
+
 			WP_CLI::success( 'Summary complete.' );
 			return;
 		}
 
-		$result = $engine->collect_sample( $form_ids, $range, $limit );
+		$result = $engine->collect_sample( $form_ids, $range, $limit, $mode );
 		if ( is_wp_error( $result ) ) {
 			WP_CLI::error( $result->get_error_message() );
 		}
@@ -164,9 +169,19 @@ final class GFA_WP_CLI {
 		$from    = isset( $assoc_args['from'] ) ? (string) $assoc_args['from'] : '';
 		$to      = isset( $assoc_args['to'] ) ? (string) $assoc_args['to'] : '';
 		$output  = isset( $assoc_args['output'] ) ? (string) $assoc_args['output'] : '';
+		$mode    = $this->parse_export_mode( $assoc_args );
 		$range   = new GFA_Date_Range( '' !== $from ? $from : null, '' !== $to ? $to : null );
 		$engine  = new GFA_Export_Engine();
 		$exporter = new GFA_Csv_Exporter( $engine );
+
+		GFA_Export_Runtime::prepare_for_export(
+			array(
+				'form_ids'    => $form_ids,
+				'range'       => $range,
+				'format'      => GFA_Export_Config::FORMAT_CSV,
+				'export_mode' => $mode,
+			)
+		);
 
 		if ( '' !== $output ) {
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
@@ -175,7 +190,7 @@ final class GFA_WP_CLI {
 				WP_CLI::error( 'Could not open output file: ' . $output );
 			}
 
-			$row_count = $exporter->write_to_handle( $handle, $form_ids, $range );
+			$row_count = $exporter->write_to_handle( $handle, $form_ids, $range, $mode );
 			fclose( $handle );
 
 			if ( is_wp_error( $row_count ) ) {
@@ -197,7 +212,7 @@ final class GFA_WP_CLI {
 			WP_CLI::error( 'Could not open stdout.' );
 		}
 
-		$row_count = $exporter->write_to_handle( $handle, $form_ids, $range );
+		$row_count = $exporter->write_to_handle( $handle, $form_ids, $range, $mode );
 		fclose( $handle );
 
 		if ( is_wp_error( $row_count ) ) {
@@ -208,6 +223,16 @@ final class GFA_WP_CLI {
 		if ( $error instanceof WP_Error ) {
 			WP_CLI::error( $error->get_error_message() );
 		}
+
+		GFA_Export_Runtime::finish_export(
+			array(
+				'form_ids'    => $form_ids,
+				'range'       => $range,
+				'format'      => GFA_Export_Config::FORMAT_CSV,
+				'export_mode' => $mode,
+				'row_count'   => (int) $row_count,
+			)
+		);
 
 		WP_CLI::log( '' );
 		WP_CLI::success( sprintf( 'Exported %d row(s) to stdout.', (int) $row_count ) );
@@ -251,9 +276,19 @@ final class GFA_WP_CLI {
 		$from     = isset( $assoc_args['from'] ) ? (string) $assoc_args['from'] : '';
 		$to       = isset( $assoc_args['to'] ) ? (string) $assoc_args['to'] : '';
 		$output   = isset( $assoc_args['output'] ) ? (string) $assoc_args['output'] : '';
+		$mode     = $this->parse_export_mode( $assoc_args );
 		$range    = new GFA_Date_Range( '' !== $from ? $from : null, '' !== $to ? $to : null );
 		$engine   = new GFA_Export_Engine();
 		$exporter = new GFA_Xlsx_Exporter( $engine );
+
+		GFA_Export_Runtime::prepare_for_export(
+			array(
+				'form_ids'    => $form_ids,
+				'range'       => $range,
+				'format'      => GFA_Export_Config::FORMAT_XLSX,
+				'export_mode' => $mode,
+			)
+		);
 
 		if ( '' !== $output ) {
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
@@ -262,7 +297,7 @@ final class GFA_WP_CLI {
 				WP_CLI::error( 'Could not open output file: ' . $output );
 			}
 
-			$row_count = $exporter->write_to_handle( $handle, $form_ids, $range );
+			$row_count = $exporter->write_to_handle( $handle, $form_ids, $range, $mode );
 			fclose( $handle );
 
 			if ( is_wp_error( $row_count ) ) {
@@ -284,7 +319,7 @@ final class GFA_WP_CLI {
 			WP_CLI::error( 'Could not open stdout.' );
 		}
 
-		$row_count = $exporter->write_to_handle( $handle, $form_ids, $range );
+		$row_count = $exporter->write_to_handle( $handle, $form_ids, $range, $mode );
 		fclose( $handle );
 
 		if ( is_wp_error( $row_count ) ) {
@@ -295,6 +330,16 @@ final class GFA_WP_CLI {
 		if ( $error instanceof WP_Error ) {
 			WP_CLI::error( $error->get_error_message() );
 		}
+
+		GFA_Export_Runtime::finish_export(
+			array(
+				'form_ids'    => $form_ids,
+				'range'       => $range,
+				'format'      => GFA_Export_Config::FORMAT_XLSX,
+				'export_mode' => $mode,
+				'row_count'   => (int) $row_count,
+			)
+		);
 
 		WP_CLI::log( '' );
 		WP_CLI::success( sprintf( 'Exported %d row(s) to stdout.', (int) $row_count ) );
@@ -330,20 +375,26 @@ final class GFA_WP_CLI {
 
 		$from    = isset( $assoc_args['from'] ) ? (string) $assoc_args['from'] : '';
 		$to      = isset( $assoc_args['to'] ) ? (string) $assoc_args['to'] : '';
+		$mode    = $this->parse_export_mode( $assoc_args );
 		$range   = new GFA_Date_Range( '' !== $from ? $from : null, '' !== $to ? $to : null );
 		$preview = new GFA_Export_Preview();
 
-		$result = $preview->get_preview( $form_ids, $range );
+		$result = $preview->get_preview( $form_ids, $range, $mode );
 		if ( is_wp_error( $result ) ) {
 			WP_CLI::error( $result->get_error_message() );
 		}
 
 		WP_CLI::log( 'Date range: ' . $result['date_label'] );
+		WP_CLI::log( 'Export mode: ' . $result['export_mode_label'] );
 		WP_CLI::log( 'Forms selected: ' . $result['form_count'] );
 		WP_CLI::log( 'Entries found: ' . $result['entry_count'] );
 
 		if ( ! empty( $result['empty_form_ids'] ) ) {
 			WP_CLI::warning( 'Empty forms: ' . implode( ', ', $result['empty_form_ids'] ) );
+		}
+
+		if ( ! empty( $result['stale_form_ids'] ) ) {
+			WP_CLI::warning( 'Stale active forms: ' . implode( ', ', $result['stale_form_ids'] ) );
 		}
 
 		if ( ! $result['has_entries'] ) {
@@ -373,5 +424,18 @@ final class GFA_WP_CLI {
 		}
 
 		return array_values( array_unique( $ids ) );
+	}
+
+	/**
+	 * @param array<string, mixed> $assoc_args CLI associative args.
+	 */
+	private function parse_export_mode( array $assoc_args ): string {
+		$mode = isset( $assoc_args['mode'] ) ? sanitize_key( (string) $assoc_args['mode'] ) : GFA_Export_Config::get_default_export_mode();
+
+		if ( ! GFA_Export_Config::is_valid_mode( $mode ) ) {
+			WP_CLI::error( 'Invalid --mode value. Use all_fields or phone_fields.' );
+		}
+
+		return $mode;
 	}
 }

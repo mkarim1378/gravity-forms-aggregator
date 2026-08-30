@@ -59,6 +59,8 @@ final class GFA_Admin_Page {
 		add_action( 'admin_init', array( $this, 'handle_post' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
 		add_action( 'wp_ajax_gfa_export_preview', array( $this, 'ajax_preview' ) );
+		add_action( 'wp_ajax_gfa_save_preset', array( $this, 'ajax_save_preset' ) );
+		add_action( 'wp_ajax_gfa_delete_preset', array( $this, 'ajax_delete_preset' ) );
 	}
 
 	/**
@@ -141,12 +143,20 @@ final class GFA_Admin_Page {
 					'formsSelected'      => __( 'Forms selected: %d', 'gravity-forms-aggregator' ),
 					'entriesFound'       => __( 'Entries found: %d', 'gravity-forms-aggregator' ),
 					'dateRange'          => __( 'Date range: %s', 'gravity-forms-aggregator' ),
+					'exportMode'         => __( 'Export mode: %s', 'gravity-forms-aggregator' ),
 					'emptyFormsWarning'  => __( 'No entries in the selected date range for form ID(s): %s', 'gravity-forms-aggregator' ),
+					'staleFormsWarning'  => __( 'Active form(s) with no recent entries (form ID(s): %s)', 'gravity-forms-aggregator' ),
 					'noEntriesWarning'   => __( 'No entries match the current selection. The export file will contain headers only.', 'gravity-forms-aggregator' ),
 					'previewLoading'     => __( 'Counting entries…', 'gravity-forms-aggregator' ),
 					'previewFailed'      => __( 'Could not load the export preview.', 'gravity-forms-aggregator' ),
 					'exporting'          => __( 'Exporting…', 'gravity-forms-aggregator' ),
+					'presetNameRequired' => __( 'Enter a name for the preset.', 'gravity-forms-aggregator' ),
+					'presetSaved'        => __( 'Preset saved.', 'gravity-forms-aggregator' ),
+					'presetDeleted'      => __( 'Preset deleted.', 'gravity-forms-aggregator' ),
+					'presetActionFailed' => __( 'Could not update presets.', 'gravity-forms-aggregator' ),
+					'presetSelectFirst'  => __( 'Select a preset to delete.', 'gravity-forms-aggregator' ),
 				),
+				'presets' => GFA_Export_Preset::list_presets( get_current_user_id() ),
 			)
 		);
 	}
@@ -176,7 +186,7 @@ final class GFA_Admin_Page {
 
 		if ( GFA_Export_Config::FORMAT_CSV === $parsed['format'] ) {
 			$exporter = new GFA_Csv_Exporter( $this->engine );
-			$result   = $exporter->download( $parsed['form_ids'], $parsed['range'] );
+			$result   = $exporter->download( $parsed['form_ids'], $parsed['range'], $parsed['export_mode'] );
 
 			if ( is_wp_error( $result ) ) {
 				$this->notice_type    = 'error';
@@ -188,7 +198,7 @@ final class GFA_Admin_Page {
 
 		if ( GFA_Export_Config::FORMAT_XLSX === $parsed['format'] ) {
 			$exporter = new GFA_Xlsx_Exporter( $this->engine );
-			$result   = $exporter->download( $parsed['form_ids'], $parsed['range'] );
+			$result   = $exporter->download( $parsed['form_ids'], $parsed['range'], $parsed['export_mode'] );
 
 			if ( is_wp_error( $result ) ) {
 				$this->notice_type    = 'error';
@@ -219,12 +229,70 @@ final class GFA_Admin_Page {
 			wp_send_json_error( array( 'message' => $parsed->get_error_message() ) );
 		}
 
-		$preview = $this->preview->get_preview( $parsed['form_ids'], $parsed['range'] );
+		$preview = $this->preview->get_preview( $parsed['form_ids'], $parsed['range'], $parsed['export_mode'] );
 		if ( is_wp_error( $preview ) ) {
 			wp_send_json_error( array( 'message' => $preview->get_error_message() ) );
 		}
 
 		wp_send_json_success( $preview );
+	}
+
+	/**
+	 * AJAX handler — save current selection as a preset.
+	 */
+	public function ajax_save_preset(): void {
+		check_ajax_referer( 'gfa_export_preview', 'nonce' );
+
+		if ( ! current_user_can( self::required_capability() ) ) {
+			wp_send_json_error(
+				array( 'message' => __( 'You do not have permission to save presets.', 'gravity-forms-aggregator' ) ),
+				403
+			);
+		}
+
+		$name  = isset( $_POST['gfa_preset_name'] ) ? sanitize_text_field( wp_unslash( $_POST['gfa_preset_name'] ) ) : '';
+		$state = $this->read_form_state_from_request( true );
+		$saved = GFA_Export_Preset::save_preset( get_current_user_id(), $name, $state );
+
+		if ( is_wp_error( $saved ) ) {
+			wp_send_json_error( array( 'message' => $saved->get_error_message() ) );
+		}
+
+		wp_send_json_success(
+			array(
+				'preset'  => $saved,
+				'presets' => GFA_Export_Preset::list_presets( get_current_user_id() ),
+				'message' => __( 'Preset saved.', 'gravity-forms-aggregator' ),
+			)
+		);
+	}
+
+	/**
+	 * AJAX handler — delete a saved preset.
+	 */
+	public function ajax_delete_preset(): void {
+		check_ajax_referer( 'gfa_export_preview', 'nonce' );
+
+		if ( ! current_user_can( self::required_capability() ) ) {
+			wp_send_json_error(
+				array( 'message' => __( 'You do not have permission to delete presets.', 'gravity-forms-aggregator' ) ),
+				403
+			);
+		}
+
+		$name = isset( $_POST['gfa_preset_name'] ) ? sanitize_text_field( wp_unslash( $_POST['gfa_preset_name'] ) ) : '';
+		$deleted = GFA_Export_Preset::delete_preset( get_current_user_id(), $name );
+
+		if ( is_wp_error( $deleted ) ) {
+			wp_send_json_error( array( 'message' => $deleted->get_error_message() ) );
+		}
+
+		wp_send_json_success(
+			array(
+				'presets' => GFA_Export_Preset::list_presets( get_current_user_id() ),
+				'message' => __( 'Preset deleted.', 'gravity-forms-aggregator' ),
+			)
+		);
 	}
 
 	/**
@@ -257,6 +325,10 @@ final class GFA_Admin_Page {
 		$from_date    = (string) ( $this->form_state['from_date'] ?? '' );
 		$to_date      = (string) ( $this->form_state['to_date'] ?? '' );
 		$format       = (string) ( $this->form_state['format'] ?? GFA_Export_Config::FORMAT_CSV );
+		$export_mode  = (string) ( $this->form_state['export_mode'] ?? GFA_Export_Config::get_default_export_mode() );
+		$presets      = GFA_Export_Preset::list_presets( get_current_user_id() );
+		$history      = array_reverse( GFA_Export_History::list_entries( get_current_user_id() ) );
+		$stale_days   = GFA_Form_Insights::get_stale_threshold_days();
 		?>
 		<div class="wrap gfa-admin-wrap">
 			<h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
@@ -308,6 +380,7 @@ final class GFA_Admin_Page {
 									<th scope="col"><?php esc_html_e( 'Title', 'gravity-forms-aggregator' ); ?></th>
 									<th scope="col"><?php esc_html_e( 'Entries', 'gravity-forms-aggregator' ); ?></th>
 									<th scope="col"><?php esc_html_e( 'Status', 'gravity-forms-aggregator' ); ?></th>
+									<th scope="col"><?php esc_html_e( 'Last entry', 'gravity-forms-aggregator' ); ?></th>
 								</tr>
 							</thead>
 							<tbody>
@@ -316,11 +389,15 @@ final class GFA_Admin_Page {
 									$form_id   = (int) $form['id'];
 									$checked   = in_array( $form_id, $selected_ids, true );
 									$row_class = $form['is_active'] ? '' : 'gfa-form-inactive';
+									if ( ! empty( $form['is_stale'] ) ) {
+										$row_class = trim( $row_class . ' gfa-form-stale' );
+									}
 									?>
 									<tr
 										class="<?php echo esc_attr( $row_class ); ?>"
 										data-form-title="<?php echo esc_attr( strtolower( (string) $form['title'] ) ); ?>"
 										data-form-id="<?php echo esc_attr( (string) $form_id ); ?>"
+										data-is-stale="<?php echo ! empty( $form['is_stale'] ) ? '1' : '0'; ?>"
 									>
 										<th scope="row" class="check-column">
 											<input
@@ -336,9 +413,21 @@ final class GFA_Admin_Page {
 										<td><?php echo esc_html( number_format_i18n( (int) $form['entry_count'] ) ); ?></td>
 										<td>
 											<?php
+											if ( ! empty( $form['is_stale'] ) ) {
+												echo '<span class="gfa-stale-badge">' . esc_html__( 'Stale', 'gravity-forms-aggregator' ) . '</span> ';
+											}
 											echo $form['is_active']
 												? esc_html__( 'Active', 'gravity-forms-aggregator' )
 												: esc_html__( 'Inactive', 'gravity-forms-aggregator' );
+											?>
+										</td>
+										<td>
+											<?php
+											if ( ! empty( $form['last_entry_date'] ) ) {
+												echo esc_html( mysql2date( get_option( 'date_format' ), $form['last_entry_date'] ) );
+											} else {
+												esc_html_e( 'None', 'gravity-forms-aggregator' );
+											}
 											?>
 										</td>
 									</tr>
@@ -346,6 +435,48 @@ final class GFA_Admin_Page {
 							</tbody>
 						</table>
 					<?php endif; ?>
+				</div>
+
+				<div class="gfa-panel gfa-panel-presets">
+					<h2><?php esc_html_e( 'Presets', 'gravity-forms-aggregator' ); ?></h2>
+					<p class="description">
+						<?php esc_html_e( 'Save frequently used form selections for quick reuse.', 'gravity-forms-aggregator' ); ?>
+					</p>
+					<div class="gfa-preset-controls">
+						<label for="gfa-preset-select"><?php esc_html_e( 'Saved presets', 'gravity-forms-aggregator' ); ?></label>
+						<select id="gfa-preset-select" class="gfa-preset-select">
+							<option value=""><?php esc_html_e( '— Select a preset —', 'gravity-forms-aggregator' ); ?></option>
+							<?php foreach ( $presets as $preset ) : ?>
+								<option
+									value="<?php echo esc_attr( $preset['name'] ); ?>"
+									data-form-ids="<?php echo esc_attr( wp_json_encode( $preset['form_ids'] ) ); ?>"
+									data-from-date="<?php echo esc_attr( $preset['from_date'] ); ?>"
+									data-to-date="<?php echo esc_attr( $preset['to_date'] ); ?>"
+									data-export-mode="<?php echo esc_attr( $preset['export_mode'] ); ?>"
+								>
+									<?php echo esc_html( $preset['name'] ); ?>
+								</option>
+							<?php endforeach; ?>
+						</select>
+						<button type="button" class="button" id="gfa-load-preset">
+							<?php esc_html_e( 'Load preset', 'gravity-forms-aggregator' ); ?>
+						</button>
+						<label class="screen-reader-text" for="gfa-preset-name"><?php esc_html_e( 'Preset name', 'gravity-forms-aggregator' ); ?></label>
+						<input
+							type="text"
+							id="gfa-preset-name"
+							class="gfa-preset-name"
+							placeholder="<?php esc_attr_e( 'Preset name…', 'gravity-forms-aggregator' ); ?>"
+						/>
+						<button type="button" class="button" id="gfa-save-preset">
+							<?php esc_html_e( 'Save preset', 'gravity-forms-aggregator' ); ?>
+						</button>
+						<button type="button" class="button" id="gfa-delete-preset">
+							<?php esc_html_e( 'Delete preset', 'gravity-forms-aggregator' ); ?>
+						</button>
+					</div>
+					<p class="gfa-client-error" id="gfa-preset-error" role="alert" hidden></p>
+					<p class="gfa-preset-notice" id="gfa-preset-notice" hidden></p>
 				</div>
 
 				<div class="gfa-panel gfa-panel-dates">
@@ -376,6 +507,23 @@ final class GFA_Admin_Page {
 					<p class="gfa-client-error" id="gfa-date-error" role="alert" hidden></p>
 				</div>
 
+				<div class="gfa-panel gfa-panel-mode">
+					<h2><?php esc_html_e( 'Export mode', 'gravity-forms-aggregator' ); ?></h2>
+					<p class="description">
+						<?php esc_html_e( 'Choose whether to export all fields or phone fields only.', 'gravity-forms-aggregator' ); ?>
+					</p>
+					<p>
+						<label for="gfa-export-mode"><?php esc_html_e( 'Fields to export', 'gravity-forms-aggregator' ); ?></label>
+						<select id="gfa-export-mode" name="gfa_export_mode">
+							<?php foreach ( GFA_Export_Config::get_export_modes() as $mode_key => $mode_label ) : ?>
+								<option value="<?php echo esc_attr( $mode_key ); ?>" <?php selected( $export_mode, $mode_key ); ?>>
+									<?php echo esc_html( $mode_label ); ?>
+								</option>
+							<?php endforeach; ?>
+						</select>
+					</p>
+				</div>
+
 				<div class="gfa-panel gfa-panel-preview" id="gfa-preview-panel" hidden>
 					<h2><?php esc_html_e( 'Export preview', 'gravity-forms-aggregator' ); ?></h2>
 					<p class="gfa-preview-loading" id="gfa-preview-loading" hidden>
@@ -385,8 +533,42 @@ final class GFA_Admin_Page {
 					<p class="gfa-preview-error gfa-client-error" id="gfa-preview-error" role="alert" hidden></p>
 					<ul class="gfa-summary-list" id="gfa-preview-summary" hidden></ul>
 					<p class="gfa-summary-warning" id="gfa-preview-empty-forms" hidden></p>
+					<p class="gfa-summary-warning" id="gfa-preview-stale-forms" hidden></p>
 					<p class="gfa-summary-warning" id="gfa-preview-no-entries" hidden></p>
 				</div>
+
+				<?php if ( ! empty( $history ) ) : ?>
+					<div class="gfa-panel gfa-panel-history">
+						<h2><?php esc_html_e( 'Recent exports', 'gravity-forms-aggregator' ); ?></h2>
+						<p class="description">
+							<?php
+							printf(
+								/* translators: %d: number of days */
+								esc_html__( 'Stale forms are active forms with no entries in the last %d days.', 'gravity-forms-aggregator' ),
+								(int) $stale_days
+							);
+							?>
+						</p>
+						<ul class="gfa-history-list">
+							<?php foreach ( $history as $entry ) : ?>
+								<li>
+									<?php
+									echo esc_html(
+										sprintf(
+											/* translators: 1: localized datetime, 2: format, 3: form count, 4: entry count */
+											__( '%1$s — %2$s, %3$d form(s), %4$d entries', 'gravity-forms-aggregator' ),
+											wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), (int) $entry['timestamp'] ),
+											strtoupper( (string) $entry['format'] ),
+											(int) $entry['form_count'],
+											(int) $entry['entry_count']
+										)
+									);
+									?>
+								</li>
+							<?php endforeach; ?>
+						</ul>
+					</div>
+				<?php endif; ?>
 
 				<div class="gfa-panel gfa-panel-export">
 					<h2><?php esc_html_e( 'Export', 'gravity-forms-aggregator' ); ?></h2>
@@ -497,10 +679,11 @@ final class GFA_Admin_Page {
 	 */
 	private function default_form_state(): array {
 		return array(
-			'form_ids'  => array(),
-			'from_date' => '',
-			'to_date'   => '',
-			'format'    => GFA_Export_Config::FORMAT_CSV,
+			'form_ids'    => array(),
+			'from_date'   => '',
+			'to_date'     => '',
+			'format'      => GFA_Export_Config::FORMAT_CSV,
+			'export_mode' => GFA_Export_Config::get_default_export_mode(),
 		);
 	}
 
@@ -527,6 +710,11 @@ final class GFA_Admin_Page {
 			'to_date'   => isset( $_POST['gfa_to_date'] ) ? sanitize_text_field( wp_unslash( $_POST['gfa_to_date'] ) ) : '',
 		);
 
+		$mode_raw = isset( $_POST['gfa_export_mode'] ) ? sanitize_key( wp_unslash( $_POST['gfa_export_mode'] ) ) : GFA_Export_Config::get_default_export_mode();
+		$state['export_mode'] = GFA_Export_Config::is_valid_mode( $mode_raw )
+			? $mode_raw
+			: GFA_Export_Config::get_default_export_mode();
+
 		if ( $include_format ) {
 			$state['format'] = isset( $_POST['gfa_export_format'] )
 				? sanitize_key( wp_unslash( $_POST['gfa_export_format'] ) )
@@ -540,7 +728,7 @@ final class GFA_Admin_Page {
 	 * Validate form/date selection; returns parsed request or WP_Error.
 	 *
 	 * @param array<string, mixed> $state Form state.
-	 * @return array{form_ids: int[], range: GFA_Date_Range}|WP_Error
+	 * @return array{form_ids: int[], range: GFA_Date_Range, export_mode: string}|WP_Error
 	 */
 	private function parse_selection_request( array $state ) {
 		$form_ids = array_values(
@@ -600,8 +788,9 @@ final class GFA_Admin_Page {
 		}
 
 		return array(
-			'form_ids' => $valid_ids,
-			'range'    => $range,
+			'form_ids'    => $valid_ids,
+			'range'       => $range,
+			'export_mode' => $this->normalize_export_mode( (string) ( $state['export_mode'] ?? '' ) ),
 		);
 	}
 
@@ -609,7 +798,7 @@ final class GFA_Admin_Page {
 	 * Validate export inputs; returns parsed request or WP_Error.
 	 *
 	 * @param array<string, mixed> $state Form state.
-	 * @return array{form_ids: int[], range: GFA_Date_Range, format: string}|WP_Error
+	 * @return array{form_ids: int[], range: GFA_Date_Range, format: string, export_mode: string}|WP_Error
 	 */
 	private function parse_export_request( array $state ) {
 		$parsed = $this->parse_selection_request( $state );
@@ -627,10 +816,24 @@ final class GFA_Admin_Page {
 		}
 
 		return array(
-			'form_ids' => $parsed['form_ids'],
-			'range'    => $parsed['range'],
-			'format'   => $format,
+			'form_ids'    => $parsed['form_ids'],
+			'range'       => $parsed['range'],
+			'format'      => $format,
+			'export_mode' => $parsed['export_mode'],
 		);
+	}
+
+	/**
+	 * @param string $mode Raw export mode.
+	 */
+	private function normalize_export_mode( string $mode ): string {
+		$mode = sanitize_key( $mode );
+
+		if ( ! GFA_Export_Config::is_valid_mode( $mode ) ) {
+			return GFA_Export_Config::get_default_export_mode();
+		}
+
+		return $mode;
 	}
 
 	/**

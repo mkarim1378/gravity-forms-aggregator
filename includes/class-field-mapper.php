@@ -15,13 +15,21 @@ final class GFA_Field_Mapper {
 	/** @var string[] Layout-only field types excluded from export. */
 	private const SKIP_TYPES = array( 'html', 'section', 'page', 'captcha' );
 
+	/** @var string[] GF field types treated as phone numbers in phone-only mode. */
+	private const PHONE_FIELD_TYPES = array( 'phone' );
+
 	/**
 	 * Exportable fields for a form (includes composite sub-inputs).
 	 *
-	 * @param array $form GFAPI form array.
+	 * @param array  $form GFAPI form array.
+	 * @param string $mode Export mode slug.
 	 * @return array<int, array{key: string, label: string, field: object|null}>
 	 */
-	public static function get_exportable_fields( array $form ): array {
+	public static function get_exportable_fields( array $form, string $mode = '' ): array {
+		if ( '' === $mode ) {
+			$mode = GFA_Export_Config::get_default_export_mode();
+		}
+
 		$exportable = array();
 
 		if ( empty( $form['fields'] ) || ! is_array( $form['fields'] ) ) {
@@ -33,7 +41,7 @@ final class GFA_Field_Mapper {
 				continue;
 			}
 
-			if ( self::should_skip_field( $field ) ) {
+			if ( self::should_skip_field( $field ) || ! self::matches_export_mode( $field, $mode ) ) {
 				continue;
 			}
 
@@ -70,7 +78,23 @@ final class GFA_Field_Mapper {
 		 * @param array $exportable Mapped fields.
 		 * @param array $form       GF form array.
 		 */
-		return apply_filters( 'gfa_exportable_fields', $exportable, $form );
+		return apply_filters( 'gfa_exportable_fields', $exportable, $form, $mode );
+	}
+
+	/**
+	 * Whether a field should be included for the given export mode.
+	 *
+	 * @param object $field GF field object.
+	 * @param string $mode  Export mode slug.
+	 */
+	public static function matches_export_mode( $field, string $mode ): bool {
+		if ( GFA_Export_Config::EXPORT_MODE_PHONE_FIELDS !== $mode ) {
+			return true;
+		}
+
+		$type = isset( $field->type ) ? (string) $field->type : '';
+
+		return in_array( $type, self::PHONE_FIELD_TYPES, true );
 	}
 
 	/**
