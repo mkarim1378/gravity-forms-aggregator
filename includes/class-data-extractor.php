@@ -224,6 +224,16 @@ final class GFA_Data_Extractor {
 		}
 	}
 
+	/**
+	 * GF entry search criteria for a date range (active entries only).
+	 *
+	 * @param GFA_Date_Range $range Date filter.
+	 * @return array<string, mixed>
+	 */
+	public function get_entry_search_criteria( GFA_Date_Range $range ): array {
+		return $this->build_search_criteria( $range );
+	}
+
 	/** @var WP_Error|null */
 	private $last_error = null;
 

@@ -213,6 +213,52 @@ if ( GFA_Xlsx_Writer::is_supported() ) {
 	echo "SKIP: ZipArchive not available — XLSX tests omitted.\n";
 }
 
+/**
+ * @param int    $id    Field ID.
+ * @param string $type  GF field type.
+ * @param string $label Field label.
+ * @return stdClass
+ */
+function gfa_mock_field( $id, $type, $label ) {
+	$field        = new stdClass();
+	$field->id    = $id;
+	$field->type  = $type;
+	$field->label = $label;
+
+	return $field;
+}
+
+$resolved_form = GFA_Entry_Field_Resolver::resolve(
+	array(
+		'fields' => array(
+			gfa_mock_field( 1, 'text', 'نام و نام خانوادگی' ),
+			gfa_mock_field( 2, 'phone', 'شماره موبایل' ),
+			gfa_mock_field( 3, 'product', 'Product' ),
+		),
+	)
+);
+gfa_assert( null !== $resolved_form['name'], 'resolver finds name field by Persian label' );
+gfa_assert( '1' === $resolved_form['name']['key'], 'resolver maps name field key' );
+gfa_assert( null !== $resolved_form['mobile'], 'resolver finds phone field' );
+gfa_assert( '2' === $resolved_form['mobile']['key'], 'resolver maps mobile field key' );
+gfa_assert( true === $resolved_form['has_payment'], 'resolver detects payment-enabled form' );
+
+$text_mobile_form = GFA_Entry_Field_Resolver::resolve(
+	array(
+		'fields' => array(
+			gfa_mock_field( 4, 'text', 'نام' ),
+			gfa_mock_field( 5, 'text', 'موبایل' ),
+		),
+	)
+);
+gfa_assert( '4' === $text_mobile_form['name']['key'], 'resolver prefers text name field' );
+gfa_assert( '5' === $text_mobile_form['mobile']['key'], 'resolver finds mobile text field by label' );
+gfa_assert( false === $text_mobile_form['has_payment'], 'resolver reports no payment fields' );
+
+gfa_assert( 'Paid' === GFA_Entry_Summary_Row::format_payment_status( array( 'payment_status' => 'Paid' ) ), 'payment status label for Paid' );
+gfa_assert( '' === GFA_Entry_Summary_Row::format_payment_status( array( 'payment_status' => '' ) ), 'empty payment status stays empty' );
+gfa_assert( 'Custom' === GFA_Entry_Summary_Row::format_payment_status( array( 'payment_status' => 'Custom' ) ), 'unknown payment status passes through' );
+
 if ( $failed > 0 ) {
 	echo "\n{$failed} test(s) failed.\n";
 	exit( 1 );

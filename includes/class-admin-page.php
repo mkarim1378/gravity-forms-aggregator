@@ -64,8 +64,6 @@ final class GFA_Admin_Page {
 		add_action( 'admin_init', array( $this, 'handle_post' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
 		add_action( 'wp_ajax_gfa_export_preview', array( $this, 'ajax_preview' ) );
-		add_action( 'wp_ajax_gfa_save_preset', array( $this, 'ajax_save_preset' ) );
-		add_action( 'wp_ajax_gfa_delete_preset', array( $this, 'ajax_delete_preset' ) );
 	}
 
 	/**
@@ -165,13 +163,7 @@ final class GFA_Admin_Page {
 					'previewLoading'     => __( 'Counting entries…', 'gravity-forms-aggregator' ),
 					'previewFailed'      => __( 'Could not load the export preview.', 'gravity-forms-aggregator' ),
 					'exporting'          => __( 'Exporting…', 'gravity-forms-aggregator' ),
-					'presetNameRequired' => __( 'Enter a name for the preset.', 'gravity-forms-aggregator' ),
-					'presetSaved'        => __( 'Preset saved.', 'gravity-forms-aggregator' ),
-					'presetDeleted'      => __( 'Preset deleted.', 'gravity-forms-aggregator' ),
-					'presetActionFailed' => __( 'Could not update presets.', 'gravity-forms-aggregator' ),
-					'presetSelectFirst'  => __( 'Select a preset to delete.', 'gravity-forms-aggregator' ),
 				),
-				'presets' => GFA_Export_Preset::list_presets( get_current_user_id() ),
 			)
 		);
 	}
@@ -253,64 +245,6 @@ final class GFA_Admin_Page {
 	}
 
 	/**
-	 * AJAX handler — save current selection as a preset.
-	 */
-	public function ajax_save_preset(): void {
-		check_ajax_referer( 'gfa_export_preview', 'nonce' );
-
-		if ( ! current_user_can( self::required_capability() ) ) {
-			wp_send_json_error(
-				array( 'message' => __( 'You do not have permission to save presets.', 'gravity-forms-aggregator' ) ),
-				403
-			);
-		}
-
-		$name  = isset( $_POST['gfa_preset_name'] ) ? sanitize_text_field( wp_unslash( $_POST['gfa_preset_name'] ) ) : '';
-		$state = $this->read_form_state_from_request( true );
-		$saved = GFA_Export_Preset::save_preset( get_current_user_id(), $name, $state );
-
-		if ( is_wp_error( $saved ) ) {
-			wp_send_json_error( array( 'message' => $saved->get_error_message() ) );
-		}
-
-		wp_send_json_success(
-			array(
-				'preset'  => $saved,
-				'presets' => GFA_Export_Preset::list_presets( get_current_user_id() ),
-				'message' => __( 'Preset saved.', 'gravity-forms-aggregator' ),
-			)
-		);
-	}
-
-	/**
-	 * AJAX handler — delete a saved preset.
-	 */
-	public function ajax_delete_preset(): void {
-		check_ajax_referer( 'gfa_export_preview', 'nonce' );
-
-		if ( ! current_user_can( self::required_capability() ) ) {
-			wp_send_json_error(
-				array( 'message' => __( 'You do not have permission to delete presets.', 'gravity-forms-aggregator' ) ),
-				403
-			);
-		}
-
-		$name = isset( $_POST['gfa_preset_name'] ) ? sanitize_text_field( wp_unslash( $_POST['gfa_preset_name'] ) ) : '';
-		$deleted = GFA_Export_Preset::delete_preset( get_current_user_id(), $name );
-
-		if ( is_wp_error( $deleted ) ) {
-			wp_send_json_error( array( 'message' => $deleted->get_error_message() ) );
-		}
-
-		wp_send_json_success(
-			array(
-				'presets' => GFA_Export_Preset::list_presets( get_current_user_id() ),
-				'message' => __( 'Preset deleted.', 'gravity-forms-aggregator' ),
-			)
-		);
-	}
-
-	/**
 	 * Render the admin export screen.
 	 */
 	public function render_page(): void {
@@ -341,7 +275,6 @@ final class GFA_Admin_Page {
 		$to_date      = (string) ( $this->form_state['to_date'] ?? '' );
 		$format       = (string) ( $this->form_state['format'] ?? GFA_Export_Config::FORMAT_CSV );
 		$export_mode  = (string) ( $this->form_state['export_mode'] ?? GFA_Export_Config::get_default_export_mode() );
-		$presets      = GFA_Export_Preset::list_presets( get_current_user_id() );
 		$history      = array_reverse( GFA_Export_History::list_entries( get_current_user_id() ) );
 		$stale_days   = GFA_Form_Insights::get_stale_threshold_days();
 		?>
@@ -450,48 +383,6 @@ final class GFA_Admin_Page {
 							</tbody>
 						</table>
 					<?php endif; ?>
-				</div>
-
-				<div class="gfa-panel gfa-panel-presets">
-					<h2><?php esc_html_e( 'Presets', 'gravity-forms-aggregator' ); ?></h2>
-					<p class="description">
-						<?php esc_html_e( 'Save frequently used form selections for quick reuse.', 'gravity-forms-aggregator' ); ?>
-					</p>
-					<div class="gfa-preset-controls">
-						<label for="gfa-preset-select"><?php esc_html_e( 'Saved presets', 'gravity-forms-aggregator' ); ?></label>
-						<select id="gfa-preset-select" class="gfa-preset-select">
-							<option value=""><?php esc_html_e( '— Select a preset —', 'gravity-forms-aggregator' ); ?></option>
-							<?php foreach ( $presets as $preset ) : ?>
-								<option
-									value="<?php echo esc_attr( $preset['name'] ); ?>"
-									data-form-ids="<?php echo esc_attr( wp_json_encode( $preset['form_ids'] ) ); ?>"
-									data-from-date="<?php echo esc_attr( $preset['from_date'] ); ?>"
-									data-to-date="<?php echo esc_attr( $preset['to_date'] ); ?>"
-									data-export-mode="<?php echo esc_attr( $preset['export_mode'] ); ?>"
-								>
-									<?php echo esc_html( $preset['name'] ); ?>
-								</option>
-							<?php endforeach; ?>
-						</select>
-						<button type="button" class="button" id="gfa-load-preset">
-							<?php esc_html_e( 'Load preset', 'gravity-forms-aggregator' ); ?>
-						</button>
-						<label class="screen-reader-text" for="gfa-preset-name"><?php esc_html_e( 'Preset name', 'gravity-forms-aggregator' ); ?></label>
-						<input
-							type="text"
-							id="gfa-preset-name"
-							class="gfa-preset-name"
-							placeholder="<?php esc_attr_e( 'Preset name…', 'gravity-forms-aggregator' ); ?>"
-						/>
-						<button type="button" class="button" id="gfa-save-preset">
-							<?php esc_html_e( 'Save preset', 'gravity-forms-aggregator' ); ?>
-						</button>
-						<button type="button" class="button" id="gfa-delete-preset">
-							<?php esc_html_e( 'Delete preset', 'gravity-forms-aggregator' ); ?>
-						</button>
-					</div>
-					<p class="gfa-client-error" id="gfa-preset-error" role="alert" hidden></p>
-					<p class="gfa-preset-notice" id="gfa-preset-notice" hidden></p>
 				</div>
 
 				<div class="gfa-panel gfa-panel-dates">

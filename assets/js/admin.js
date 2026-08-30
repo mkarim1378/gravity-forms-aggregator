@@ -24,18 +24,10 @@
 	var previewEmptyForms = document.getElementById('gfa-preview-empty-forms');
 	var previewStaleForms = document.getElementById('gfa-preview-stale-forms');
 	var previewNoEntries = document.getElementById('gfa-preview-no-entries');
-	var presetSelect = document.getElementById('gfa-preset-select');
-	var presetNameInput = document.getElementById('gfa-preset-name');
-	var loadPresetBtn = document.getElementById('gfa-load-preset');
-	var savePresetBtn = document.getElementById('gfa-save-preset');
-	var deletePresetBtn = document.getElementById('gfa-delete-preset');
-	var presetError = document.getElementById('gfa-preset-error');
-	var presetNotice = document.getElementById('gfa-preset-notice');
 	var selectAllBtn = form.querySelector('.gfa-select-all');
 	var deselectAllBtn = form.querySelector('.gfa-deselect-all');
 	var rows = form.querySelectorAll('.gfa-forms-table tbody tr');
 	var previewRequest = null;
-	var presetRequest = null;
 
 	function getVisibleCheckboxes() {
 		return Array.prototype.filter.call(checkboxes, function (checkbox) {
@@ -94,22 +86,6 @@
 		}
 		element.hidden = false;
 		element.textContent = message;
-	}
-
-	function showNotice(element, message) {
-		if (!element) {
-			return;
-		}
-		element.hidden = false;
-		element.textContent = message;
-	}
-
-	function hideNotice(element) {
-		if (!element) {
-			return;
-		}
-		element.hidden = true;
-		element.textContent = '';
 	}
 
 	function validateDates() {
@@ -297,135 +273,6 @@
 		previewRequest.send(buildFormPayload('gfa_export_preview'));
 	}
 
-	function rebuildPresetOptions(presets) {
-		if (!presetSelect) {
-			return;
-		}
-
-		while (presetSelect.options.length > 1) {
-			presetSelect.remove(1);
-		}
-
-		(presets || []).forEach(function (preset) {
-			var option = document.createElement('option');
-			option.value = preset.name;
-			option.textContent = preset.name;
-			option.setAttribute('data-form-ids', JSON.stringify(preset.form_ids || []));
-			option.setAttribute('data-from-date', preset.from_date || '');
-			option.setAttribute('data-to-date', preset.to_date || '');
-			option.setAttribute('data-export-mode', preset.export_mode || '');
-			presetSelect.appendChild(option);
-		});
-	}
-
-	function runPresetAction(action, extraFields) {
-		if (presetRequest) {
-			presetRequest.abort();
-		}
-
-		hideError(presetError);
-		hideNotice(presetNotice);
-
-		var payload = buildFormPayload(action);
-		if (extraFields) {
-			Object.keys(extraFields).forEach(function (key) {
-				payload.append(key, extraFields[key]);
-			});
-		}
-
-		presetRequest = new XMLHttpRequest();
-		presetRequest.open('POST', gfaAdmin.ajaxUrl, true);
-		presetRequest.onreadystatechange = function () {
-			if (presetRequest.readyState !== 4) {
-				return;
-			}
-
-			presetRequest = null;
-			var response;
-
-			try {
-				response = JSON.parse(presetRequest.responseText);
-			} catch (error) {
-				showError(presetError, gfaAdmin.i18n.presetActionFailed);
-				return;
-			}
-
-			if (!response.success) {
-				showError(
-					presetError,
-					response.data && response.data.message ? response.data.message : gfaAdmin.i18n.presetActionFailed
-				);
-				return;
-			}
-
-			if (response.data && response.data.presets) {
-				rebuildPresetOptions(response.data.presets);
-			}
-
-			showNotice(presetNotice, response.data && response.data.message ? response.data.message : '');
-		};
-
-		presetRequest.send(payload);
-	}
-
-	function loadPreset() {
-		if (!presetSelect || !presetSelect.value) {
-			showError(presetError, gfaAdmin.i18n.presetSelectFirst);
-			return;
-		}
-
-		var option = presetSelect.options[presetSelect.selectedIndex];
-		var formIds = [];
-
-		try {
-			formIds = JSON.parse(option.getAttribute('data-form-ids') || '[]');
-		} catch (error) {
-			formIds = [];
-		}
-
-		checkboxes.forEach(function (checkbox) {
-			var id = parseInt(checkbox.value, 10);
-			checkbox.checked = formIds.indexOf(id) !== -1;
-		});
-
-		if (fromDate) {
-			fromDate.value = option.getAttribute('data-from-date') || '';
-		}
-		if (toDate) {
-			toDate.value = option.getAttribute('data-to-date') || '';
-		}
-		if (exportMode) {
-			exportMode.value = option.getAttribute('data-export-mode') || exportMode.value;
-		}
-
-		hideError(presetError);
-		invalidatePreview();
-		updateExportState();
-	}
-
-	function savePreset() {
-		if (!validateForms() || !validateDates()) {
-			return;
-		}
-
-		var name = presetNameInput ? presetNameInput.value.trim() : '';
-		if (!name) {
-			showError(presetError, gfaAdmin.i18n.presetNameRequired);
-			return;
-		}
-
-		runPresetAction('gfa_save_preset', { gfa_preset_name: name });
-	}
-
-	function deletePreset() {
-		if (!presetSelect || !presetSelect.value) {
-			showError(presetError, gfaAdmin.i18n.presetSelectFirst);
-			return;
-		}
-
-		runPresetAction('gfa_delete_preset', { gfa_preset_name: presetSelect.value });
-	}
-
 	function updateExportState() {
 		setButtonsDisabled(getSelectedCount() === 0);
 		syncCheckAllState();
@@ -510,18 +357,6 @@
 
 	if (previewButton) {
 		previewButton.addEventListener('click', runPreview);
-	}
-
-	if (loadPresetBtn) {
-		loadPresetBtn.addEventListener('click', loadPreset);
-	}
-
-	if (savePresetBtn) {
-		savePresetBtn.addEventListener('click', savePreset);
-	}
-
-	if (deletePresetBtn) {
-		deletePresetBtn.addEventListener('click', deletePreset);
 	}
 
 	exportButtons.forEach(function (button) {

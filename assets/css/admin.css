@@ -120,27 +120,52 @@
 	text-transform: uppercase;
 }
 
-.gfa-admin-wrap .gfa-preset-controls {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: flex-end;
-	gap: 0.5em;
-}
-
-.gfa-admin-wrap .gfa-preset-controls label {
-	font-weight: 600;
-}
-
-.gfa-admin-wrap .gfa-preset-name {
-	min-width: 180px;
-}
-
-.gfa-admin-wrap .gfa-preset-notice {
-	color: #007017;
-	font-weight: 600;
-}
-
 .gfa-admin-wrap .gfa-history-list {
 	margin: 0.5em 0 0;
 	padding-left: 1.25em;
+}
+
+.gfa-admin-wrap .gfa-entries-list-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75em;
+	margin-bottom: 0.75em;
+}
+
+.gfa-admin-wrap .gfa-entries-meta {
+	margin: 0;
+	font-weight: 600;
+}
+
+.gfa-admin-wrap .gfa-entries-loading {
+	display: flex;
+	align-items: center;
+	gap: 0.5em;
+	margin: 0;
+}
+
+.gfa-admin-wrap .gfa-entries-loading .spinner {
+	float: none;
+	margin: 0;
+}
+
+.gfa-admin-wrap .gfa-entries-table td:nth-child(3) {
+	white-space: nowrap;
+}
+
+.gfa-admin-wrap .gfa-entries-empty {
+	margin-top: 0.75em;
+	color: #646970;
+}
+
+.gfa-admin-wrap .gfa-entries-pagination {
+	display: flex;
+	align-items: center;
+	gap: 0.75em;
+	margin-top: 1em;
+}
+
+.gfa-admin-wrap .gfa-entries-page-label {
+	font-weight: 600;
 }

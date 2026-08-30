@@ -54,7 +54,9 @@ final class GFA_Plugin {
 
 		if ( is_admin() ) {
 			require_once GFA_PLUGIN_DIR . 'includes/class-admin-page.php';
+			require_once GFA_PLUGIN_DIR . 'includes/class-entries-list-page.php';
 			GFA_Admin_Page::instance()->register();
+			GFA_Entries_List_Page::instance()->register();
 		}
 	}
 
