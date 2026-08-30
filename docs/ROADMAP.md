@@ -80,9 +80,11 @@
 
 **خروجی:**
 
-- [ ] فایل CSV قابل دانلود
-- [ ] encoding UTF-8 BOM
-- [ ] header استاندارد
+- [x] فایل CSV قابل دانلود
+- [x] encoding UTF-8 BOM
+- [x] header استاندارد
+
+**وضعیت:** ✅ — `GFA_Csv_Exporter` + admin download
 
 **چرا اول CSV:** سریع‌تر و کم‌ریسک‌تر.
 

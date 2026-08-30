@@ -61,10 +61,32 @@ gfa_assert(
 gfa_assert( '99' === GFA_Export_Row::normalize_cell( 99 ), 'normalize_cell stringifies integers' );
 gfa_assert( '' === GFA_Export_Row::normalize_cell( array( 'a' ) ), 'normalize_cell rejects arrays' );
 
+// CSV writer outputs header + rows with UTF-8 BOM.
+$csv      = new GFA_Csv_Exporter( null );
+$handle   = fopen( 'php://memory', 'w+' );
+$written  = GFA_Export_Config::csv_uses_bom() ? fwrite( $handle, "\xEF\xBB\xBF" ) : 0;
+fputcsv( $handle, array_values( GFA_Export_Config::get_columns() ), ',', '"', '\\' );
+$row_count = $csv->write_rows_to_handle(
+	$handle,
+	array(
+		GFA_Export_Row::from_array( $fixtures['complete'] ),
+		GFA_Export_Row::from_array( $fixtures['escaped'] ),
+	)
+);
+rewind( $handle );
+$csv_content = stream_get_contents( $handle );
+fclose( $handle );
+
+gfa_assert( 2 === $row_count, 'write_rows_to_handle writes two data rows' );
+gfa_assert( 0 === strpos( $csv_content, "\xEF\xBB\xBF" ), 'CSV begins with UTF-8 BOM' );
+gfa_assert( false !== strpos( $csv_content, 'Form ID' ), 'CSV contains standard header labels' );
+gfa_assert( false !== strpos( $csv_content, 'user@example.com' ), 'CSV contains unescaped simple value' );
+gfa_assert( false !== strpos( $csv_content, 'hello, ""world""' ), 'CSV escapes comma-containing field value' );
+
 if ( $failed > 0 ) {
 	echo "\n{$failed} test(s) failed.\n";
 	exit( 1 );
 }
 
-echo "\nAll export row unit tests passed.\n";
+echo "\nAll unit tests passed.\n";
 exit( 0 );
